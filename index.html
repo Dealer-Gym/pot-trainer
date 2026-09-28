@@ -18,7 +18,7 @@ h1{font-size:18px;margin:0}h1 span{color:var(--gb)}h1 small{font-size:12px;font-
 #tbw{margin:4px 0 8px}
 svg{width:100%;height:auto;display:block;font-family:inherit}
 #cap{text-align:center;font-size:15px;font-weight:700;min-height:22px;margin:2px 0 6px;font-variant-numeric:tabular-nums}#cap small{opacity:.55;font-weight:400;margin-left:8px;font-size:12px}
-.ctl{display:flex;gap:6px;margin-bottom:8px}.ctl button{flex:1;padding:8px 0;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--cream);font-size:12.5px;cursor:pointer}
+.ctl{display:flex;gap:6px;margin-bottom:8px}.ctl button{flex:1;padding:8px 0;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--cream);font-size:12.5px;cursor:pointer}.ctl button:disabled{opacity:.35;cursor:default}
 #ans{display:grid;grid-template-columns:1fr;gap:8px;margin-bottom:10px}
 .ans{display:flex;align-items:center;gap:6px}
 .ans label{width:60px;font-size:14px;opacity:.85;flex-shrink:0}
@@ -48,7 +48,7 @@ input:focus{border-color:var(--gold)}
 <div class="wrap">
 <div id="setup"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><h1>팟<span>계산</span> 연습</h1><button id="don" class="don" style="display:none">☕ 후원</button></div>
 <div class="note" style="margin-bottom:14px">블라인드(칩 단위)를 골라주세요. 6인 테이블 프리플랍이에요. 본인만의 계산 순서대로 각 팟에 정답을 채워보세요 — 하나만 남기고 다 맞히면 마지막 팟은 자동으로 정답 처리돼요.</div>
-<div class="note" style="margin:-6px 0 14px;color:var(--gb);opacity:.9">배속을 누르면 남은 시간이 두 배 빠르게 줄어요. 그 안에 맞히면 하트가 추가돼요 (최대 다섯개), 틀리면 목숨이 줄어요</div>
+<div class="note" style="margin:-6px 0 14px;color:var(--gb);opacity:.9">배속은 문제 시작 2초 안에만 누를 수 있어요. 누르면 남은 시간이 두 배 빠르게 줄고, 그 상태로 맞히면 하트가 추가돼요 (최대 다섯개), 틀리면 목숨이 줄어요</div>
 <div class="ct" style="margin:0 0 6px"><span>닉네임</span></div>
 <input type="text" id="nick" maxlength="10" placeholder="닉네임 (최대 10자)" style="width:100%;margin-bottom:14px">
 <div class="grid" id="pre"></div>
@@ -198,7 +198,7 @@ async function submitScore(n,sc){
   const e={n,s:sc,t:Date.now()};
   try{await fbPost(e);const all=await fbAll();const i=all.findIndex(x=>x.t===e.t&&x.n===n&&x.s===sc);return{rank:i<0?null:i+1,total:all.length};}catch(err){return{rank:local,total:null};}
 }
-let qn=0,score=0,lives=3,over=false,nick='',fast=false,practice=false,roundT=0,gameSubmitted=true,solved=false;let fullHtml='',cd=null,cdStarted=false,cdRemaining=0,cdTotal=0,cdSpeed=1,pend=0,bonusOk=[];
+let qn=0,score=0,lives=3,over=false,nick='',fast=false,practice=false,roundT=0,gameSubmitted=true,solved=false,fastTimer=null;let fullHtml='',cd=null,cdStarted=false,cdRemaining=0,cdTotal=0,cdSpeed=1,pend=0,bonusOk=[];
 function beaconSubmit(){
   if(gameSubmitted||practice||qn<1||!FB_URL)return;
   gameSubmitted=true;saveScore(nick,score);
@@ -257,6 +257,8 @@ function newRound(){
   for(let t=0;t<8000&&!r;t++){const x=sim(tg>=4);if(x&&x.pots.length===tg)r=x;}
   for(let t=0;t<3000&&!r;t++)r=sim(false);
   G=r;done=false;roundT=Date.now();fast=false;updHud();document.getElementById('nxt').textContent='다음 문제';document.getElementById('pn').textContent='다음 문제';
+  clearTimeout(fastTimer);const nxBtn=document.getElementById('nx');nxBtn.disabled=false;nxBtn.textContent='배속';
+  fastTimer=setTimeout(()=>{if(!fast&&!done)nxBtn.disabled=true;},2000);
   document.getElementById('bl').textContent=lbl(G.sb)+' / '+lbl(G.bb);
   document.getElementById('tmb').style.width='100%';document.getElementById('tmb').className='';document.getElementById('tms').textContent='제한 '+LIM[G.pots.length]+'초';
   stop();step=0;draw();timer=setInterval(tick,730);autoB.textContent='정지';
@@ -291,8 +293,8 @@ function check(to){
   document.getElementById('chk').style.display='none';document.getElementById('rvw').style.display='block';document.getElementById('nxt').style.display='block';
 }
 document.getElementById('rs').onclick=()=>{stop();step=0;draw();};
-document.getElementById('nx').onclick=()=>{
-  if(!done&&!fast){fast=true;cdSpeed=2;const f=document.getElementById('tmp');f.textContent='배속! 정답 시 ♥+1';setTimeout(()=>{f.textContent='';},1400);}
+document.getElementById('nx').onclick=(e)=>{
+  if(!done&&!fast){fast=true;cdSpeed=2;clearTimeout(fastTimer);e.target.disabled=true;const f=document.getElementById('tmp');f.textContent='배속! 정답 시 ♥+1';setTimeout(()=>{f.textContent='';},1400);}
   stop();step=G.log.length;draw();endReached();};
 autoB.onclick=()=>{if(timer){stop();return;}if(step>=G.log.length){step=0;draw();}timer=setInterval(tick,730);autoB.textContent='정지';};
 document.getElementById('chk').onclick=()=>{if(solved)nextOrEnd();else check(false);};
