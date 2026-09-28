@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>팟계산 연습</title>
+<style>
+:root{--f1:#0d3b2c;--f2:#0a2e22;--gold:#c9a44c;--gb:#e6c368;--cream:#f2ead6;--red:#c4574e;--grn:#5fae85;--line:rgba(242,234,214,.16);box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{scroll-padding-top:env(safe-area-inset-top,0px);height:100%}
+*{box-sizing:border-box}
+body{margin:0;min-height:100%;background:radial-gradient(1200px 700px at 50% -10%,#123f2f 0%,var(--f1) 45%,var(--f2) 100%);color:var(--cream);font-family:-apple-system,BlinkMacSystemFont,"Pretendard","Apple SD Gothic Neo","Malgun Gothic",sans-serif;display:flex;justify-content:center}
+.wrap{width:100%;max-width:480px;min-height:100vh;min-height:100dvh;padding:10px 14px 12px;position:relative}
+#setup{height:100%;overflow:auto}
+#game{flex-direction:column}
+header{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:2px}
+h1{font-size:18px;margin:0}h1 span{color:var(--gb)}h1 small{font-size:12px;font-weight:400;opacity:.65;margin-left:8px;font-variant-numeric:tabular-nums}
+.stats{font-size:12.5px;opacity:.85;font-variant-numeric:tabular-nums}.stats b{color:var(--gb)}
+#tbw{margin:4px 0 8px}
+svg{width:100%;height:auto;display:block;font-family:inherit}
+#cap{text-align:center;font-size:15px;font-weight:700;min-height:22px;margin:2px 0 6px;font-variant-numeric:tabular-nums}#cap small{opacity:.55;font-weight:400;margin-left:8px;font-size:12px}
+.ctl{display:flex;gap:6px;margin-bottom:8px}.ctl button{flex:1;padding:8px 0;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--cream);font-size:12.5px;cursor:pointer}
+#ans{display:grid;grid-template-columns:1fr;gap:8px;margin-bottom:10px}
+.ans{display:flex;align-items:center;gap:6px}
+.ans label{width:60px;font-size:14px;opacity:.85;flex-shrink:0}
+input{flex:1;min-width:0;background:rgba(0,0,0,.25);border:1px solid var(--line);border-radius:9px;padding:11px 12px;color:var(--cream);font-size:17px;font-weight:600;font-variant-numeric:tabular-nums;outline:none}
+input:focus{border-color:var(--gold)}
+#tm{display:flex;align-items:center;gap:8px;margin:0 0 8px}#tmt{flex:1;height:6px;border-radius:4px;background:rgba(255,255,255,.1);overflow:hidden}#tmb{height:100%;width:100%;background:var(--gold)}#tmb.low{background:var(--red)}#tmp{color:var(--grn);font-size:13px;font-weight:700}
+#tms{font-size:13px;font-weight:700;min-width:52px;text-align:right;font-variant-numeric:tabular-nums}
+.hr{display:flex;justify-content:space-between;padding:8px 0;border-top:1px solid var(--line);font-size:14px;font-variant-numeric:tabular-nums}
+.don{padding:6px 11px;border-radius:14px;border:1px solid var(--line);background:transparent;color:var(--cream);font-size:12px;opacity:.85;cursor:pointer}
+.btns{display:flex;gap:8px}
+.main{flex:1;padding:14px 0;border-radius:12px;border:none;font-size:15px;font-weight:700;cursor:pointer;background:var(--gold);color:#1c1409}
+.main.sec{background:transparent;color:var(--cream);border:1px solid var(--line)}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.grid button{padding:13px 0;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--cream);font-size:14px;font-weight:600;cursor:pointer;font-variant-numeric:tabular-nums}
+.grid button:active{border-color:var(--gold);background:rgba(201,164,76,.14)}
+.note{font-size:12px;opacity:.6;line-height:1.55}
+.ct{display:flex;justify-content:space-between;font-size:13px;opacity:.75}
+#setup .ans{margin-bottom:10px}#setup .ans span{opacity:.6}
+#pop{display:none;position:absolute;inset:0;background:rgba(0,0,0,.55);align-items:center;justify-content:center;padding:18px;z-index:5}
+.box{width:100%;max-width:380px;max-height:100%;overflow:auto;background:#0d3b2c;border:1px solid var(--line);border-radius:16px;padding:16px}
+#pt{font-size:18px;font-weight:700;margin-bottom:8px}#pt.ok{color:var(--grn)}#pt.no{color:var(--red)}
+#pb{font-size:13px;line-height:1.75;margin-bottom:12px;font-variant-numeric:tabular-nums}
+#pb b{color:var(--gb)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div id="setup"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><h1>팟<span>계산</span> 연습</h1><button id="don" class="don" style="display:none">☕ 후원</button></div>
+<div class="note" style="margin-bottom:14px">블라인드(칩 단위)를 골라주세요. 6인 테이블 프리플랍이에요. 금액은 그 시점까지 넣은 총액(블라인드 포함)이고, 콜 받지 못한 베팅은 반환되어 팟에 포함되지 않아요.</div>
+<div class="ct" style="margin:0 0 6px"><span>닉네임</span></div>
+<input type="text" id="nick" maxlength="10" placeholder="닉네임 (최대 10자)" style="width:100%;margin-bottom:14px">
+<div class="grid" id="pre"></div>
+<div class="ct" style="margin:16px 0 6px"><span>직접 입력 (SB / BB)</span></div>
+<div class="ans"><input type="text" inputmode="numeric" id="csb" placeholder="SB"><span>/</span><input type="text" inputmode="numeric" id="cbb" placeholder="BB"></div>
+<button class="main" id="cgo" style="width:100%">이 블라인드로 시작</button>
+<div id="hof"></div></div>
+<div id="game" style="display:none">
+<header><h1>팟<span>계산</span><small id="bl"></small></h1><div class="stats">Q<b id="qn">1</b> &nbsp;<b id="sc">0</b>점 &nbsp;<b id="lv" style="color:#c4574e">♥♥♥</b></div></header>
+<div id="tbw"><svg id="tb" viewBox="0 0 400 290" role="img" aria-label="포커 테이블"></svg></div>
+<div id="tm"><div id="tmt"><div id="tmb"></div></div><span id="tmp"></span><span id="tms"></span></div>
+<div id="ans"></div>
+<div class="btns"><button class="main" id="chk">정답 확인</button><button class="main sec" id="rvw" style="display:none">풀이 보기</button><button class="main" id="nxt" style="display:none">다음 문제</button></div>
+<div class="ctl" style="margin:8px 0 0"><button id="rs">처음부터</button><button id="nx">배속</button><button id="auto">자동재생</button><button id="chg">블라인드</button></div>
+</div>
+<div id="dpop" style="display:none;position:absolute;inset:0;background:rgba(0,0,0,.55);align-items:center;justify-content:center;padding:18px;z-index:6"><div class="box"><div style="font-size:17px;font-weight:700;margin-bottom:8px">커피 한 잔 후원하기</div><div class="note" style="margin-bottom:14px">재밌게 즐기셨다면 개발자에게 커피 한 잔 사주세요. 금액은 카카오페이 화면에서 직접 정해요.</div><div class="btns"><button class="main sec" id="dcl">닫기</button><a class="main" id="dgo" target="_blank" rel="noopener" style="text-decoration:none;text-align:center;display:block">카카오페이로 송금하기</a></div></div></div>
+<div id="pop"><div class="box"><div id="pt"></div><div id="pb"></div><div class="btns"><button class="main sec" id="pr">검토하기</button><button class="main" id="pn">다음 문제</button></div></div></div>
+</div>
+<script>
+
+const P6=["UTG","HJ","CO","BTN","SB","BB"];
+let BLV=null;const PRE=[[1,2],[5,10],[10,20],[25,50],[50,100],[100,200],[200,400],[500,1000],[1000,2000],[5000,10000],[10000,20000]],NM=["메인","세컨","서드","포스","피프스"];
+const lbl=n=>n>=10000&&n%10000===0?n/10000+'만':n.toLocaleString('ko-KR');
+let G=null,streak=0,ok=0,tot=0,step=0,timer=null,done=false;
+const tb=document.getElementById('tb'),autoB=document.getElementById('auto');
+const stop=()=>{if(timer){clearInterval(timer);timer=null;}autoB.textContent='자동재생';};
+const tick=()=>{if(step>=G.log.length){stop();return;}step++;draw();if(step>=G.log.length){stop();endReached();}};
+function state(k){const{pos,log,sb,bb}=G,n=pos.length,c=Array(n).fill(0),f=Array(n).fill(false),a=Array(n).fill(false);c[n-2]=sb;c[n-1]=bb;
+  for(let s=0;s<k;s++){const l=log[s];if(l.t==='폴드')f[l.j]=true;else if(l.to){c[l.j]=l.to;if(l.t==='올인')a[l.j]=true;}}return{c,f,a};}
+function draw(){
+  const{pos,stack,log}=G,n=pos.length,{c,f,a}=state(step),bt=pos.indexOf('BTN'),cx=200,cy=145,cur=step>0?log[step-1].j:-1;
+  let h='<ellipse cx="200" cy="145" rx="128" ry="90" fill="#0a2e22" stroke="#6b4a2a" stroke-width="8"/><ellipse cx="200" cy="145" rx="118" ry="80" fill="none" stroke="rgba(242,234,214,.12)"/>';
+  pos.forEach((p,i)=>{
+    const th=(90+(i-bt)*360/n)*Math.PI/180,sx=cx+165*Math.cos(th),sy=cy+115*Math.sin(th),st=cur===i?'#e6c368':a[i]?'#c4574e':'rgba(242,234,214,.3)';
+    h+=`<g opacity="${f[i]?.35:1}"><rect x="${sx-33}" y="${sy-19}" width="66" height="38" rx="9" fill="#0d3b2c" stroke="${st}" stroke-width="${cur===i?2.5:1.2}"/><text x="${sx}" y="${sy-4}" text-anchor="middle" font-size="11" fill="#f2ead6" opacity=".8">${p}</text><text x="${sx}" y="${sy+12}" text-anchor="middle" font-size="12.5" font-weight="700" fill="${a[i]?'#c4574e':'#f2ead6'}">${a[i]?'올인':fmt(stack[i]-c[i])}</text>`;
+    if(i===bt)h+=`<circle cx="${sx+31}" cy="${sy-17}" r="8" fill="#f2ead6"/><text x="${sx+31}" y="${sy-13.5}" text-anchor="middle" font-size="10" font-weight="700" fill="#0a2e22">D</text>`;
+    h+='</g>';
+    if(c[i]>0){const bx=sx+(cx-sx)*.42,by=sy+(cy-sy)*.42,w=fmt(c[i]).length*7.4+14;
+      h+=`<g opacity="${f[i]?.4:1}"><rect x="${bx-w/2}" y="${by-10}" width="${w}" height="20" rx="10" fill="#c9a44c"/><text x="${bx}" y="${by+4}" text-anchor="middle" font-size="12" font-weight="700" fill="#1c1409">${fmt(c[i])}</text></g>`;}
+  });
+  const l=log[step-1];
+  h+=`<text x="200" y="144" text-anchor="middle" font-size="14" font-weight="700" fill="#e6c368">${step===0?'UTG부터 시작':pos[l.j]+' '+l.t+(l.to?' '+fmt(l.to):'')}</text><text x="200" y="162" text-anchor="middle" font-size="10.5" fill="#f2ead6" opacity=".55">${step}/${log.length}</text>`;
+  tb.innerHTML=h;
+}
+const fmt=n=>n.toLocaleString('ko-KR'),rnd=(a,b)=>a+Math.floor(Math.random()*(b-a+1)),pick=a=>a[Math.floor(Math.random()*a.length)];
+
+function solve(c0,live){
+  const c=[...c0],s=[...c].sort((a,b)=>b-a);let unc=0,ui=-1;
+  if(s[0]>s[1]){unc=s[0]-s[1];ui=c.indexOf(s[0]);c[ui]=s[1];}
+  const lv=[...new Set(c.filter((_,i)=>live[i]))].sort((a,b)=>a-b);let prev=0;const pots=[];
+  for(const L of lv){let el=0,dead=0;
+    c.forEach((v,i)=>{if(live[i]){if(v>=L)el++;}else dead+=Math.min(v,L)-Math.min(v,prev);});
+    pots.push({amt:(L-prev)*el+dead,el,dead,step:L-prev});prev=L;}
+  return{pots,unc,ui};
+}
+
+function sim(hot){
+  const pos=P6,n=pos.length,[sb,bb]=BLV;
+  const stack=pos.map(()=>(Math.random()<.15?rnd(60,120):rnd(10,50))*sb);
+  const c=Array(n).fill(0);c[n-2]=sb;c[n-1]=bb;
+  const fold=Array(n).fill(false),allin=Array(n).fill(false),need=Array(n).fill(true),open=Array(n).fill(true),put=Array(n).fill(false);
+  let cur=bb,lastR=bb,i=0,g=0;const log=[],act=j=>!fold[j]&&!allin[j];
+  while(g++<300){
+    let f=-1;for(let k=0;k<n;k++){const j=(i+k)%n;if(act(j)&&need[j]){f=j;break;}}
+    if(f<0||fold.filter(x=>!x).length===1)break;
+    const j=f,left=stack[j]-c[j],toCall=cur-c[j],r=Math.random(),bbs=stack[j]/bb,canR=open[j]&&left>toCall;
+    const raise=()=>{const minTo=cur+lastR;
+      if(stack[j]<=minTo||Math.random()<(hot?.75:bbs<=14?.65:.2))return'allin';
+      let to=Math.max(Math.round((cur+lastR*pick([1,1.5,2,3]))/sb)*sb,minTo);
+      return to>=stack[j]?'allin':to;};
+    let a;
+    if(toCall===0)a=(canR&&r<.3)?raise():'check';
+    else if(toCall>=left)a=r<(put[j]?.5:hot?.9:.62)?'allin':'fold';
+    else{const fr=cur>bb,pf=put[j]?(hot?.3:.5):hot?.12:fr?.42:.5,pc=hot?.2:fr?.33:.2;a=r<pf?'fold':r<pf+pc?'call':(canR?raise():'call');}
+    open[j]=false;need[j]=false;
+    if(a==='fold'){fold[j]=true;log.push({j,t:'폴드'});}
+    else if(a==='check')log.push({j,t:'체크'});
+    else if(a==='call'){c[j]=cur;put[j]=true;log.push({j,t:'콜',to:cur});}
+    else{const to=a==='allin'?stack[j]:a,inc=to-cur;c[j]=to;put[j]=true;if(a==='allin')allin[j]=true;
+      log.push({j,t:a==='allin'?'올인':'레이즈',to});
+      if(inc>0){cur=to;const full=inc>=lastR;if(full)lastR=inc;
+        for(let m=0;m<n;m++)if(m!==j&&act(m)){need[m]=true;if(full)open[m]=true;}}}
+    i=(j+1)%n;
+  }
+  const live=fold.map(x=>!x);if(live.filter(Boolean).length<2)return null;
+  const s=solve(c,live);
+  if(s.pots.length<2||s.pots.length>5||s.pots.some(p=>p.el<2))return null;
+  return{pos,sb,bb,stack,log,fold,...s};
+}
+
+const LIM={2:10,3:13,4:16,5:20};const FB_URL='https://korea-top-dealer-default-rtdb.firebaseio.com';        // Firebase Realtime Database 주소 (끝에 / 없이)
+const KAKAO_LINK='https://qr.kakaopay.com/FXUyfgYPV';    // 카카오페이 송금 링크
+const fbBase=()=>FB_URL.replace(/\/$/,'');
+async function fbTop(){
+  let r=await fetch(fbBase()+'/leaderboard.json?orderBy=%22s%22&limitToLast=10');
+  if(!r.ok)r=await fetch(fbBase()+'/leaderboard.json');
+  if(!r.ok){let m='';try{m=(await r.text()).slice(0,80);}catch(e){}throw new Error(r.status+' '+m);}
+  const o=await r.json()||{};return Object.values(o).sort((a,b)=>b.s-a.s||a.t-b.t).slice(0,10);}
+async function fbPost(e){const r=await fetch(fbBase()+'/leaderboard.json',{method:'POST',body:JSON.stringify(e)});if(!r.ok)throw new Error('fb');}
+async function submitScore(n,sc){
+  const local=saveScore(n,sc);if(!FB_URL)return local;
+  const e={n,s:sc,t:Date.now()};
+  try{await fbPost(e);const top=await fbTop();const i=top.findIndex(x=>x.t===e.t&&x.n===n&&x.s===sc);return i<0?99:i+1;}catch(err){return local;}
+}
+let qn=0,score=0,lives=3,over=false,nick='',fast=false,practice=false,roundT=0;let fullHtml='',cd=null,cdStarted=false,cdEnd=0,cdLim=0,pend=0,bonusOk=[];
+const clearCd=()=>{if(cd){clearInterval(cd);cd=null;}};
+function startCd(){
+  cdStarted=true;cdLim=LIM[G.pots.length]*1000+pend;cdEnd=Date.now()+cdLim;pend=0;
+  const tmb=document.getElementById('tmb'),tms=document.getElementById('tms'),a0=document.getElementById('a0');
+  if(a0&&document.activeElement.tagName!=='INPUT')a0.focus();
+  cd=setInterval(()=>{const rem=cdEnd-Date.now();
+    if(rem<=0){clearCd();tmb.style.width='0%';tms.textContent='0초';check(true);return;}
+    tmb.style.width=Math.min(100,rem/cdLim*100)+'%';tmb.className=rem<3000?'low':'';tms.textContent=Math.ceil(rem/1000)+'초';},100);
+}
+function award(i){
+  if(done||bonusOk[i])return;const inp=document.getElementById('a'+i);
+  if(parseInt((inp.value||'').replace(/\D/g,''),10)!==G.pots[i].amt)return;
+  bonusOk[i]=true;inp.style.borderColor='#5fae85';
+  if(cd){cdEnd+=3000;cdLim+=3000;}else pend+=3000;
+  const f=document.getElementById('tmp');f.textContent='+3초';setTimeout(()=>{f.textContent='';},900);
+}
+const endReached=()=>{if(!cdStarted&&!done)startCd();};
+function updHud(){document.getElementById('qn').textContent=qn;document.getElementById('sc').textContent=fmt(score);document.getElementById('lv').textContent='♥'.repeat(Math.max(0,lives))+'♡'.repeat(Math.max(0,3-lives));}
+function saveScore(n,sc){try{let a=JSON.parse(localStorage.getItem('potHof')||'[]');const e={n,s:sc,t:Date.now()};a.push(e);a.sort((x,y)=>y.s-x.s||x.t-y.t);a=a.slice(0,50);localStorage.setItem('potHof',JSON.stringify(a));return a.findIndex(x=>x.t===e.t&&x.n===n)+1||99;}catch(e){return 99;}}
+async function renderHof(){const box=document.getElementById('hof');box.textContent='';
+  const h=document.createElement('div');h.className='ct';h.style.margin='22px 0 6px';const t=document.createElement('span');t.textContent='명예의 전당';h.appendChild(t);box.appendChild(h);
+  const body=document.createElement('div');box.appendChild(body);
+  let a=[],shared=false,why='';
+  if(FB_URL){body.innerHTML='<div class="note">불러오는 중…</div>';try{a=await fbTop();shared=true;}catch(e){why=(e&&e.message)||'network';}}
+  if(!shared){try{a=JSON.parse(localStorage.getItem('potHof')||'[]');}catch(e){a=[];}}
+  body.textContent='';
+  if(!a.length){const n=document.createElement('div');n.className='note';n.textContent='아직 기록이 없어요. 첫 기록을 남겨보세요.';body.appendChild(n);return;}
+  a.slice(0,10).forEach((e,i)=>{const r=document.createElement('div');r.className='hr';const l=document.createElement('span');l.textContent=(i+1)+'  '+e.n;const v=document.createElement('span');v.textContent=fmt(e.s)+'점';r.append(l,v);body.appendChild(r);});
+  const f=document.createElement('div');f.className='note';f.style.marginTop='6px';f.textContent=shared?'전체 플레이어 기록이에요.':FB_URL?'서버에 연결하지 못해 이 기기 기록을 보여줘요 ('+why+')':'이 기기에 저장된 기록이에요.';body.appendChild(f);}
+function showSetup(){stop();clearCd();document.getElementById('pop').style.display='none';document.getElementById('game').style.display='none';document.getElementById('setup').style.display='block';renderHof();}
+const nextOrEnd=()=>{if(over)showSetup();else newRound();};
+function newRound(){
+  clearCd();cdStarted=false;pend=0;
+  qn++;const tg=rnd(2,qn<=5?3:qn<=10?4:5);let r=null;
+  for(let t=0;t<8000&&!r;t++){const x=sim(tg>=4);if(x&&x.pots.length===tg)r=x;}
+  for(let t=0;t<3000&&!r;t++)r=sim(false);
+  G=r;done=false;roundT=Date.now();fast=false;updHud();document.getElementById('nxt').textContent='다음 문제';document.getElementById('pn').textContent='다음 문제';
+  document.getElementById('bl').textContent=lbl(G.sb)+' / '+lbl(G.bb);
+  document.getElementById('tmb').style.width='100%';document.getElementById('tmb').className='';document.getElementById('tms').textContent='제한 '+LIM[G.pots.length]+'초';
+  stop();step=0;draw();timer=setInterval(tick,730);autoB.textContent='정지';
+  document.getElementById('ans').innerHTML=G.pots.map((p,i)=>`<div class="ans"><label>${NM[i]}</label><input type="text" inputmode="numeric" id="a${i}" placeholder="금액"></div>`).join('');
+  bonusOk=G.pots.map(()=>false);document.getElementById('tmp').textContent='';
+  G.pots.forEach((p,i)=>{const inp=document.getElementById('a'+i);inp.oninput=()=>{clearTimeout(inp._t);inp._t=setTimeout(()=>award(i),500);};});
+  document.getElementById('pop').style.display='none';
+  document.getElementById('chk').style.display='block';document.getElementById('rvw').style.display='none';document.getElementById('nxt').style.display='none';
+}
+function check(to){
+  if(done)return;done=true;const remMs=cd?Math.max(0,cdEnd-Date.now()):(LIM[G.pots.length]*1000+pend);clearCd();stop();step=G.log.length;draw();
+  const k=G.pots.length,v=[...Array(k).keys()].map(i=>parseInt((document.getElementById('a'+i).value||'').replace(/\D/g,''),10)||0);
+  const res=G.pots.map((p,i)=>p.amt===v[i]),all=res.every(Boolean);
+  let gain=0,gotHeart=false;if(all){gain=G.pots.length*100+Math.ceil(remMs/1000)*10;score+=gain;if(fast&&lives<5){lives++;gotHeart=true;}}else lives--;
+  let extra='';if(lives<=0){over=true;extra=`<div style="margin-top:6px;color:var(--gb)">게임 오버 · 최종 ${fmt(score)}점<span id="rkt"></span></div>`;submitScore(nick,score).then(rk=>{const el=document.getElementById('rkt');if(el)el.textContent=rk<=10?' · 명예의 전당 '+rk+'위':' · 10위권 밖';});document.getElementById('nxt').textContent='랭킹 보기';document.getElementById('pn').textContent='랭킹 보기';}
+  updHud();
+  const L=G.pots.map((p,i)=>`<div>${res[i]?'○':'✕'} ${NM[i]} 팟 <b>${fmt(p.amt)}</b> = ${fmt(p.step)} × ${p.el}명${p.dead?` + 데드머니 ${fmt(p.dead)}`:''}${res[i]?'':` (내 답 ${fmt(v[i])})`}</div>`);
+  if(G.unc)L.push(`<div style="opacity:.65;margin-top:4px">${G.pos[G.ui]}의 콜 받지 못한 ${fmt(G.unc)}은 반환되어 팟에 포함되지 않아요.</div>`);
+  const pt=document.getElementById('pt');pt.className=all?'ok':'no';pt.textContent=all?'정답이에요 +'+gain+'점'+(gotHeart?' · ♥+1':''):to===true?'시간 초과예요':'오답이에요';
+  fullHtml=L.join('');
+  document.getElementById('pb').innerHTML=G.pots.map((p,i)=>`<div>${res[i]?'○':'✕'} ${NM[i]} 팟</div>`).join('')+extra;
+  document.getElementById('pr').textContent='검토하기';
+  document.getElementById('pop').style.display='flex';
+  G.pots.forEach((p,i)=>{const inp=document.getElementById('a'+i);inp.readOnly=true;inp.style.borderColor=res[i]?'#5fae85':'#c4574e';
+    inp.previousElementSibling.textContent=NM[i]+(res[i]?' ○':' ✕');});
+  document.getElementById('chk').style.display='none';document.getElementById('rvw').style.display='block';document.getElementById('nxt').style.display='block';
+}
+document.getElementById('rs').onclick=()=>{stop();step=0;draw();};
+document.getElementById('nx').onclick=()=>{
+  if(!done&&!fast&&Date.now()-roundT<2000){fast=true;const f=document.getElementById('tmp');f.textContent='정답 시 ♥+1';setTimeout(()=>{f.textContent='';},1400);}
+  stop();step=G.log.length;draw();endReached();};
+autoB.onclick=()=>{if(timer){stop();return;}if(step>=G.log.length){step=0;draw();}timer=setInterval(tick,730);autoB.textContent='정지';};
+document.getElementById('chk').onclick=()=>check(false);
+document.getElementById('nxt').onclick=nextOrEnd;document.getElementById('pn').onclick=nextOrEnd;
+document.getElementById('pr').onclick=()=>{document.getElementById('pop').style.display='none';};
+document.getElementById('rvw').onclick=()=>{document.getElementById('pb').innerHTML=fullHtml;document.getElementById('pr').textContent='닫기';document.getElementById('pop').style.display='flex';};
+const go=(a,b)=>{const ni=document.getElementById('nick'),nm=ni.value.trim().slice(0,10);if(!nm){ni.style.borderColor='#c4574e';ni.focus();return;}ni.style.borderColor='';nick=nm;try{localStorage.setItem('potNick',nm);}catch(e){}BLV=[a,b];qn=0;practice=false;score=0;lives=3;over=false;document.getElementById('setup').style.display='none';document.getElementById('game').style.display='flex';newRound();};
+document.getElementById('pre').innerHTML=PRE.map(([a,b])=>`<button data-a="${a}" data-b="${b}">${lbl(a)} / ${lbl(b)}</button>`).join('');
+document.querySelectorAll('#pre button').forEach(x=>x.onclick=()=>go(+x.dataset.a,+x.dataset.b));
+document.getElementById('cgo').onclick=()=>{const a=parseInt(document.getElementById('csb').value.replace(/\D/g,''),10),b=parseInt(document.getElementById('cbb').value.replace(/\D/g,''),10);
+  if(a>0&&b>=a)go(a,b);else{document.getElementById('cbb').style.borderColor='#c4574e';}};
+document.getElementById('chg').onclick=showSetup;
+try{document.getElementById('nick').value=localStorage.getItem('potNick')||'';}catch(e){}
+renderHof();
+if(KAKAO_LINK){const d=document.getElementById('don');d.style.display='block';document.getElementById('dgo').href=KAKAO_LINK;
+  d.onclick=()=>{document.getElementById('dpop').style.display='flex';};document.getElementById('dcl').onclick=()=>{document.getElementById('dpop').style.display='none';};}
+</script>
+</body>
+</html>
