@@ -47,7 +47,7 @@ input:focus{border-color:var(--gold)}
 <body>
 <div class="wrap">
 <div id="setup"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><h1>팟<span>계산</span> 연습</h1><button id="don" class="don" style="display:none">☕ 후원</button></div>
-<div class="note" style="margin-bottom:14px">블라인드(칩 단위)를 골라주세요. 6인 테이블 프리플랍이에요. 금액은 그 시점까지 넣은 총액(블라인드 포함)이고, 콜 받지 못한 베팅은 반환되어 팟에 포함되지 않아요.</div>
+<div class="note" style="margin-bottom:14px">블라인드(칩 단위)를 골라주세요. 6인 테이블 프리플랍이에요. 본인만의 계산 순서대로 각 팟에 정답을 채워보세요 — 하나만 남기고 다 맞히면 마지막 팟은 자동으로 정답 처리돼요.</div>
 <div class="note" style="margin:-6px 0 14px;color:var(--gb);opacity:.9">배속을 누르면 남은 시간이 두 배 빠르게 줄어요. 그 안에 맞히면 하트가 추가돼요 (최대 다섯개), 틀리면 목숨이 줄어요</div>
 <div class="ct" style="margin:0 0 6px"><span>닉네임</span></div>
 <input type="text" id="nick" maxlength="10" placeholder="닉네임 (최대 10자)" style="width:100%;margin-bottom:14px">
@@ -61,6 +61,7 @@ input:focus{border-color:var(--gold)}
 <div id="tbw"><svg id="tb" viewBox="0 0 400 290" role="img" aria-label="포커 테이블"></svg></div>
 <div id="tm"><div id="tmt"><div id="tmb"></div></div><span id="tmp"></span><span id="tms"></span></div>
 <div id="ans"></div>
+<div id="slv" class="note" style="display:none;margin:4px 0;color:var(--grn)"></div>
 <div class="btns"><button class="main" id="chk">정답 확인</button><button class="main sec" id="rvw" style="display:none">풀이 보기</button><button class="main" id="nxt" style="display:none">다음 문제</button></div>
 <div class="ctl" style="margin:8px 0 0"><button id="rs">처음부터</button><button id="nx">배속</button><button id="auto">자동재생</button><button id="chg">블라인드</button></div>
 </div>
@@ -151,7 +152,7 @@ function sim(hot){
   return{pos,sb,bb,stack,log,fold,...s};
 }
 
-const LIM={2:15,3:18,4:21,5:25};const FB_URL='https://korea-top-dealer-default-rtdb.firebaseio.com';        // Firebase Realtime Database 주소 (끝에 / 없이)
+const LIM={2:10,3:13,4:16,5:20};const FB_URL='https://korea-top-dealer-default-rtdb.firebaseio.com';        // Firebase Realtime Database 주소 (끝에 / 없이)
 const KAKAO_LINK='https://qr.kakaopay.com/FXUyfgYPV';    // 카카오페이 송금 링크
 const WEB3FORMS_KEY='7493ad80-c0e9-48ac-a353-c2522b66ddb3';    // Web3Forms 액세스 키 (후원자 제보 이메일 알림용)
 const fbBase=()=>FB_URL.replace(/\/$/,'');
@@ -197,7 +198,7 @@ async function submitScore(n,sc){
   const e={n,s:sc,t:Date.now()};
   try{await fbPost(e);const all=await fbAll();const i=all.findIndex(x=>x.t===e.t&&x.n===n&&x.s===sc);return{rank:i<0?null:i+1,total:all.length};}catch(err){return{rank:local,total:null};}
 }
-let qn=0,score=0,lives=3,over=false,nick='',fast=false,practice=false,roundT=0,gameSubmitted=true;let fullHtml='',cd=null,cdStarted=false,cdRemaining=0,cdTotal=0,cdSpeed=1,pend=0,bonusOk=[];
+let qn=0,score=0,lives=3,over=false,nick='',fast=false,practice=false,roundT=0,gameSubmitted=true,solved=false;let fullHtml='',cd=null,cdStarted=false,cdRemaining=0,cdTotal=0,cdSpeed=1,pend=0,bonusOk=[];
 function beaconSubmit(){
   if(gameSubmitted||practice||qn<1||!FB_URL)return;
   gameSubmitted=true;saveScore(nick,score);
@@ -214,15 +215,26 @@ function startCd(){
   cdStarted=true;cdTotal=LIM[G.pots.length]*1000+pend;cdRemaining=cdTotal;pend=0;
   const tmb=document.getElementById('tmb'),tms=document.getElementById('tms');
   cd=setInterval(()=>{cdRemaining-=100*cdSpeed;
-    if(cdRemaining<=0){clearCd();tmb.style.width='0%';tms.textContent='0초';check(true);return;}
+    if(cdRemaining<=0){clearCd();tmb.style.width='0%';tms.textContent='0초';if(!solved)check(true);return;}
     tmb.style.width=Math.min(100,cdRemaining/cdTotal*100)+'%';tmb.className=cdRemaining<3000?'low':'';tms.textContent=Math.ceil(cdRemaining/1000)+'초';},100);
+}
+function autoSolve(){
+  if(solved||done)return;solved=true;
+  const remMs=cd?Math.max(0,cdRemaining):(LIM[G.pots.length]*1000+pend);
+  const gain=G.pots.length*100+Math.ceil(remMs/1000)*10;score+=gain;
+  let gotHeart=false;if(fast&&lives<5){lives++;gotHeart=true;}
+  updHud();
+  const slv=document.getElementById('slv');slv.style.display='block';
+  slv.textContent='정답이에요! +'+fmt(gain)+'점'+(gotHeart?' · ♥+1':'')+' — 나머지 팟도 풀어보거나, 정답 확인 버튼으로 바로 다음 문제로 넘어가세요.';
+  document.getElementById('chk').textContent='다음 문제로';
 }
 function award(i){
   if(done||bonusOk[i])return;const inp=document.getElementById('a'+i);
   if(parseInt((inp.value||'').replace(/\D/g,''),10)!==G.pots[i].amt)return;
   bonusOk[i]=true;inp.style.borderColor='#5fae85';
-  if(cd){cdRemaining+=3000;cdTotal+=3000;}else pend+=3000;
-  const f=document.getElementById('tmp');f.textContent='+3초';setTimeout(()=>{f.textContent='';},900);
+  if(cd){cdRemaining+=5000;cdTotal+=5000;}else pend+=5000;
+  const f=document.getElementById('tmp');f.textContent='+5초';setTimeout(()=>{f.textContent='';},900);
+  if(!solved&&!done&&bonusOk.filter(Boolean).length>=G.pots.length-1)autoSolve();
 }
 const endReached=()=>{if(!cdStarted&&!done)startCd();};
 function updHud(){document.getElementById('qn').textContent=qn;document.getElementById('sc').textContent=fmt(score);document.getElementById('lv').textContent='♥'.repeat(Math.max(0,lives))+'♡'.repeat(Math.max(0,3-lives));}
@@ -240,7 +252,7 @@ async function renderHof(){const box=document.getElementById('hof');box.textCont
 function showSetup(){stop();clearCd();document.getElementById('pop').style.display='none';document.getElementById('game').style.display='none';document.getElementById('setup').style.display='block';renderHof();}
 const nextOrEnd=()=>{if(over)showSetup();else newRound();};
 function newRound(){
-  clearCd();cdStarted=false;pend=0;cdSpeed=1;
+  clearCd();cdStarted=false;pend=0;cdSpeed=1;solved=false;
   qn++;const tg=rnd(2,qn<=5?3:qn<=10?4:5);let r=null;
   for(let t=0;t<8000&&!r;t++){const x=sim(tg>=4);if(x&&x.pots.length===tg)r=x;}
   for(let t=0;t<3000&&!r;t++)r=sim(false);
@@ -250,6 +262,8 @@ function newRound(){
   stop();step=0;draw();timer=setInterval(tick,730);autoB.textContent='정지';
   document.getElementById('ans').innerHTML=G.pots.map((p,i)=>`<div class="ans"><label>${NM[i]}</label><input type="text" inputmode="numeric" id="a${i}" placeholder="금액"></div>`).join('');
   bonusOk=G.pots.map(()=>false);document.getElementById('tmp').textContent='';
+  document.getElementById('slv').style.display='none';document.getElementById('slv').textContent='';
+  document.getElementById('chk').textContent='정답 확인';
   G.pots.forEach((p,i)=>{const inp=document.getElementById('a'+i);inp.oninput=()=>{clearTimeout(inp._t);inp._t=setTimeout(()=>award(i),500);};});
   document.getElementById('pop').style.display='none';
   document.getElementById('chk').style.display='block';document.getElementById('rvw').style.display='none';document.getElementById('nxt').style.display='none';
@@ -281,7 +295,7 @@ document.getElementById('nx').onclick=()=>{
   if(!done&&!fast){fast=true;cdSpeed=2;const f=document.getElementById('tmp');f.textContent='배속! 정답 시 ♥+1';setTimeout(()=>{f.textContent='';},1400);}
   stop();step=G.log.length;draw();endReached();};
 autoB.onclick=()=>{if(timer){stop();return;}if(step>=G.log.length){step=0;draw();}timer=setInterval(tick,730);autoB.textContent='정지';};
-document.getElementById('chk').onclick=()=>check(false);
+document.getElementById('chk').onclick=()=>{if(solved)nextOrEnd();else check(false);};
 document.getElementById('nxt').onclick=nextOrEnd;document.getElementById('pn').onclick=nextOrEnd;
 document.getElementById('pr').onclick=()=>{document.getElementById('pop').style.display='none';};
 document.getElementById('rvw').onclick=()=>{document.getElementById('pb').innerHTML=fullHtml;document.getElementById('pr').textContent='닫기';document.getElementById('pop').style.display='flex';};
