@@ -64,7 +64,19 @@ input:focus{border-color:var(--gold)}
 <div class="btns"><button class="main" id="chk">정답 확인</button><button class="main sec" id="rvw" style="display:none">풀이 보기</button><button class="main" id="nxt" style="display:none">다음 문제</button></div>
 <div class="ctl" style="margin:8px 0 0"><button id="rs">처음부터</button><button id="nx">배속</button><button id="auto">자동재생</button><button id="chg">블라인드</button></div>
 </div>
-<div id="dpop" style="display:none;position:absolute;inset:0;background:rgba(0,0,0,.55);align-items:center;justify-content:center;padding:18px;z-index:6"><div class="box"><div style="font-size:17px;font-weight:700;margin-bottom:8px">커피 한 잔 후원하기</div><div class="note" style="margin-bottom:14px">재밌게 즐기셨다면 개발자에게 커피 한 잔 사주세요. 금액은 카카오페이 화면에서 직접 정해요.</div><div class="btns"><button class="main sec" id="dcl">닫기</button><a class="main" id="dgo" target="_blank" rel="noopener" style="text-decoration:none;text-align:center;display:block">카카오페이로 송금하기</a></div></div></div>
+<div id="dpop" style="display:none;position:absolute;inset:0;background:rgba(0,0,0,.55);align-items:center;justify-content:center;padding:18px;z-index:6"><div class="box">
+<div style="font-size:17px;font-weight:700;margin-bottom:8px">커피 한 잔 후원하기</div>
+<div class="note" style="margin-bottom:14px">재밌게 즐기셨다면 개발자에게 커피 한 잔 사주세요. 금액은 카카오페이 화면에서 직접 정해요.</div>
+<div id="ddonors"></div>
+<div class="btns" style="margin-top:14px"><button class="main sec" id="dcl">닫기</button><a class="main" id="dgo" target="_blank" rel="noopener" style="text-decoration:none;text-align:center;display:block">카카오페이로 송금하기</a></div>
+<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line)">
+  <div class="note" style="margin-bottom:10px">송금하셨다면 아래에 닉네임과 송금자명을 알려주세요. 실제 입금 내역과 대조한 뒤 후원자 명단에 올려드려요. <b style="color:var(--gb)">송금자명은 공개되지 않아요!</b></div>
+  <div class="ans"><input type="text" id="dnick" maxlength="12" placeholder="닉네임 (명단에 표시될 이름)"></div>
+  <div class="ans" style="margin-top:8px"><input type="text" id="dreal" maxlength="20" placeholder="송금자명 (실명, 대조용·비공개)"></div>
+  <button class="main" id="dsub" style="width:100%;margin-top:10px">개발자에게 닉네임 전송하기</button>
+  <div id="dmsg" class="note" style="margin-top:8px;display:none"></div>
+</div>
+</div></div>
 <div id="pop"><div class="box"><div id="pt"></div><div id="pb"></div><div class="btns"><button class="main sec" id="pr">검토하기</button><button class="main" id="pn">다음 문제</button></div></div></div>
 </div>
 <script>
@@ -141,6 +153,7 @@ function sim(hot){
 
 const LIM={2:15,3:18,4:21,5:25};const FB_URL='https://korea-top-dealer-default-rtdb.firebaseio.com';        // Firebase Realtime Database 주소 (끝에 / 없이)
 const KAKAO_LINK='https://qr.kakaopay.com/FXUyfgYPV';    // 카카오페이 송금 링크
+const WEB3FORMS_KEY='7493ad80-c0e9-48ac-a353-c2522b66ddb3';    // Web3Forms 액세스 키 (후원자 제보 이메일 알림용)
 const fbBase=()=>FB_URL.replace(/\/$/,'');
 async function fbAll(){
   const r=await fetch(fbBase()+'/leaderboard.json');
@@ -152,6 +165,33 @@ async function fbTop(){
   if(!r.ok){let m='';try{m=(await r.text()).slice(0,80);}catch(e){}throw new Error(r.status+' '+m);}
   const o=await r.json()||{};return Object.values(o).sort((a,b)=>b.s-a.s||a.t-b.t).slice(0,10);}
 async function fbPost(e){const r=await fetch(fbBase()+'/leaderboard.json',{method:'POST',body:JSON.stringify(e)});if(!r.ok)throw new Error('fb');}
+async function fbDonors(){const r=await fetch(fbBase()+'/donors.json');if(!r.ok)throw new Error('fb');const o=await r.json()||{};return Object.values(o).sort((a,b)=>b.t-a.t);}
+async function submitDonorReport(nick,real){const r=await fetch(fbBase()+'/donor_reports.json',{method:'POST',body:JSON.stringify({nick,real,t:Date.now()})});if(!r.ok)throw new Error('fb');}
+function sendDonorEmail(nick,real){
+  if(!WEB3FORMS_KEY)return;
+  fetch('https://api.web3forms.com/submit',{
+    method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json'},
+    body:JSON.stringify({
+      access_key:WEB3FORMS_KEY,
+      subject:'[팟계산 연습] 새 후원자 제보: '+nick,
+      from_name:'팟계산 연습 게임',
+      닉네임:nick,송금자명:real,
+      message:'닉네임: '+nick+'\n송금자명: '+real+'\n시각: '+new Date().toLocaleString('ko-KR')
+    })
+  }).catch(()=>{});
+}
+async function renderPopupDonors(){
+  const box=document.getElementById('ddonors');if(!box)return;
+  if(!FB_URL){box.innerHTML='';return;}
+  box.innerHTML='<div class="note">불러오는 중…</div>';
+  let a=[];try{a=await fbDonors();}catch(e){box.innerHTML='';return;}
+  box.textContent='';
+  const h=document.createElement('div');h.className='ct';h.style.margin='2px 0 8px';const t=document.createElement('span');t.textContent='후원해주신 분들';h.appendChild(t);box.appendChild(h);
+  if(!a.length){const n=document.createElement('div');n.className='note';n.textContent='아직은 없어요. 첫 후원자가 되어보세요 ☕';box.appendChild(n);return;}
+  const wrap=document.createElement('div');wrap.style.cssText='display:flex;flex-wrap:wrap;gap:6px';
+  a.slice(0,30).forEach(e=>{const c=document.createElement('span');c.style.cssText='padding:5px 10px;border-radius:100px;border:1px solid var(--line);font-size:12.5px;opacity:.9';c.textContent='☕ '+e.n;wrap.appendChild(c);});
+  box.appendChild(wrap);
+}
 async function submitScore(n,sc){
   const local=saveScore(n,sc);if(!FB_URL)return{rank:local,total:null};
   const e={n,s:sc,t:Date.now()};
@@ -270,7 +310,22 @@ renderHof();
   });
 })();
 if(KAKAO_LINK){const d=document.getElementById('don');d.style.display='block';document.getElementById('dgo').href=KAKAO_LINK;
-  d.onclick=()=>{document.getElementById('dpop').style.display='flex';};document.getElementById('dcl').onclick=()=>{document.getElementById('dpop').style.display='none';};}
+  d.onclick=()=>{document.getElementById('dpop').style.display='flex';renderPopupDonors();
+    const msg=document.getElementById('dmsg'),ip=document.getElementById('dnick'),ip2=document.getElementById('dreal'),sb=document.getElementById('dsub');
+    msg.style.display='none';ip.style.display='';ip.value='';ip.style.borderColor='';ip2.style.display='';ip2.value='';ip2.style.borderColor='';
+    sb.style.display='';sb.disabled=false;sb.textContent='개발자에게 닉네임 전송하기';};
+  document.getElementById('dcl').onclick=()=>{document.getElementById('dpop').style.display='none';};
+  document.getElementById('dsub').onclick=async()=>{
+    const ip=document.getElementById('dnick'),ip2=document.getElementById('dreal'),nm=ip.value.trim().slice(0,12),rl=ip2.value.trim().slice(0,20),btn=document.getElementById('dsub'),msg=document.getElementById('dmsg');
+    if(!nm){ip.style.borderColor='#c4574e';ip.focus();return;}
+    if(!rl){ip2.style.borderColor='#c4574e';ip2.focus();return;}
+    ip.style.borderColor='';ip2.style.borderColor='';btn.disabled=true;btn.textContent='전달 중…';
+    try{await submitDonorReport(nm,rl);sendDonorEmail(nm,rl);
+      msg.style.display='block';msg.style.color='var(--grn)';msg.textContent='정말 감사해요 🥹💛 송금 내역 확인 후 후원자 명단에 꼭 올려드릴게요!';
+      ip.style.display='none';ip2.style.display='none';btn.style.display='none';
+    }catch(e){btn.disabled=false;btn.textContent='개발자에게 닉네임 전송하기';
+      msg.style.display='block';msg.style.color='var(--red)';msg.textContent='전달에 실패했어요. 다시 시도해주세요.';}
+  };}
 </script>
 </body>
 </html>
