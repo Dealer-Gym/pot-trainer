@@ -27,7 +27,6 @@ input:focus{border-color:var(--gold)}
 #tm{display:flex;align-items:center;gap:8px;margin:0 0 8px}#tmt{flex:1;height:6px;border-radius:4px;background:rgba(255,255,255,.1);overflow:hidden}#tmb{height:100%;width:100%;background:var(--gold)}#tmb.low{background:var(--red)}#tmp{color:var(--grn);font-size:13px;font-weight:700}
 #tms{font-size:13px;font-weight:700;min-width:52px;text-align:right;font-variant-numeric:tabular-nums}
 .hr{display:flex;justify-content:space-between;padding:8px 0;border-top:1px solid var(--line);font-size:14px;font-variant-numeric:tabular-nums}
-.don{padding:6px 11px;border-radius:14px;border:1px solid var(--line);background:transparent;color:var(--cream);font-size:12px;opacity:.85;cursor:pointer}
 .btns{display:flex;gap:8px}
 .main{flex:1;padding:14px 0;border-radius:12px;border:none;font-size:15px;font-weight:700;cursor:pointer;background:var(--gold);color:#1c1409}
 .main.sec{background:transparent;color:var(--cream);border:1px solid var(--line)}
@@ -46,7 +45,7 @@ input:focus{border-color:var(--gold)}
 </head>
 <body>
 <div class="wrap">
-<div id="setup"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><h1>팟<span>계산</span> 연습</h1><button id="don" class="don" style="display:none">☕ 후원</button></div>
+<div id="setup"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><h1>팟<span>계산</span> 연습</h1></div>
 <div class="note" style="margin-bottom:14px">블라인드(칩 단위)를 골라주세요. 6인 테이블 프리플랍이에요. 금액은 그 시점까지 넣은 총액(블라인드 포함)이고, 콜 받지 못한 베팅은 반환되어 팟에 포함되지 않아요.</div>
 <div class="note" style="margin:-6px 0 14px;color:var(--gb);opacity:.9">배속을 눌러 문제를 빠르게 풀어내면 하트가 추가돼요 (최대 다섯개)</div>
 <div class="ct" style="margin:0 0 6px"><span>닉네임</span></div>
@@ -64,7 +63,6 @@ input:focus{border-color:var(--gold)}
 <div class="btns"><button class="main" id="chk">정답 확인</button><button class="main sec" id="rvw" style="display:none">풀이 보기</button><button class="main" id="nxt" style="display:none">다음 문제</button></div>
 <div class="ctl" style="margin:8px 0 0"><button id="rs">처음부터</button><button id="nx">배속</button><button id="auto">자동재생</button><button id="chg">블라인드</button></div>
 </div>
-<div id="dpop" style="display:none;position:absolute;inset:0;background:rgba(0,0,0,.55);align-items:center;justify-content:center;padding:18px;z-index:6"><div class="box"><div style="font-size:17px;font-weight:700;margin-bottom:8px">커피 한 잔 후원하기</div><div class="note" style="margin-bottom:14px">재밌게 즐기셨다면 개발자에게 커피 한 잔 사주세요. 금액은 카카오페이 화면에서 직접 정해요.</div><div class="btns"><button class="main sec" id="dcl">닫기</button><a class="main" id="dgo" target="_blank" rel="noopener" style="text-decoration:none;text-align:center;display:block">카카오페이로 송금하기</a></div></div></div>
 <div id="pop"><div class="box"><div id="pt"></div><div id="pb"></div><div class="btns"><button class="main sec" id="pr">검토하기</button><button class="main" id="pn">다음 문제</button></div></div></div>
 </div>
 <script>
@@ -140,7 +138,6 @@ function sim(hot){
 }
 
 const LIM={2:10,3:13,4:16,5:20};const FB_URL='https://korea-top-dealer-default-rtdb.firebaseio.com';        // Firebase Realtime Database 주소 (끝에 / 없이)
-const KAKAO_LINK='https://qr.kakaopay.com/FXUyfgYPV';    // 카카오페이 송금 링크
 const fbBase=()=>FB_URL.replace(/\/$/,'');
 async function fbTop(){
   let r=await fetch(fbBase()+'/leaderboard.json?orderBy=%22s%22&limitToLast=10');
@@ -235,8 +232,6 @@ document.getElementById('cgo').onclick=()=>{const a=parseInt(document.getElement
 document.getElementById('chg').onclick=showSetup;
 try{document.getElementById('nick').value=localStorage.getItem('potNick')||'';}catch(e){}
 renderHof();
-if(KAKAO_LINK){const d=document.getElementById('don');d.style.display='block';document.getElementById('dgo').href=KAKAO_LINK;
-  d.onclick=()=>{document.getElementById('dpop').style.display='flex';};document.getElementById('dcl').onclick=()=>{document.getElementById('dpop').style.display='none';};}
 </script>
 </body>
 </html>
