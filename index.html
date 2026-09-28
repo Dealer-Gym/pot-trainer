@@ -146,7 +146,11 @@ async function fbAll(){
   const r=await fetch(fbBase()+'/leaderboard.json');
   if(!r.ok){let m='';try{m=(await r.text()).slice(0,80);}catch(e){}throw new Error(r.status+' '+m);}
   const o=await r.json()||{};return Object.values(o).sort((a,b)=>b.s-a.s||a.t-b.t);}
-async function fbTop(){return (await fbAll()).slice(0,10);}
+async function fbTop(){
+  let r=await fetch(fbBase()+'/leaderboard.json?orderBy=%22s%22&limitToLast=10');
+  if(!r.ok)r=await fetch(fbBase()+'/leaderboard.json');
+  if(!r.ok){let m='';try{m=(await r.text()).slice(0,80);}catch(e){}throw new Error(r.status+' '+m);}
+  const o=await r.json()||{};return Object.values(o).sort((a,b)=>b.s-a.s||a.t-b.t).slice(0,10);}
 async function fbPost(e){const r=await fetch(fbBase()+'/leaderboard.json',{method:'POST',body:JSON.stringify(e)});if(!r.ok)throw new Error('fb');}
 async function submitScore(n,sc){
   const local=saveScore(n,sc);if(!FB_URL)return{rank:local,total:null};
@@ -168,8 +172,7 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
 const clearCd=()=>{if(cd){clearInterval(cd);cd=null;}};
 function startCd(){
   cdStarted=true;cdTotal=LIM[G.pots.length]*1000+pend;cdRemaining=cdTotal;pend=0;
-  const tmb=document.getElementById('tmb'),tms=document.getElementById('tms'),a0=document.getElementById('a0');
-  if(a0&&document.activeElement.tagName!=='INPUT')a0.focus();
+  const tmb=document.getElementById('tmb'),tms=document.getElementById('tms');
   cd=setInterval(()=>{cdRemaining-=100*cdSpeed;
     if(cdRemaining<=0){clearCd();tmb.style.width='0%';tms.textContent='0초';check(true);return;}
     tmb.style.width=Math.min(100,cdRemaining/cdTotal*100)+'%';tmb.className=cdRemaining<3000?'low':'';tms.textContent=Math.ceil(cdRemaining/1000)+'초';},100);
@@ -250,6 +253,22 @@ document.getElementById('cgo').onclick=()=>{const a=parseInt(document.getElement
 document.getElementById('chg').onclick=exitToSetup;
 try{document.getElementById('nick').value=localStorage.getItem('potNick')||'';}catch(e){}
 renderHof();
+(function(){
+  let savedY=0;
+  const isField=el=>el&&(el.tagName==='INPUT'||el.tagName==='TEXTAREA'||el.tagName==='SELECT');
+  document.addEventListener('focusin',e=>{
+    if(!isField(e.target))return;
+    savedY=window.scrollY||window.pageYOffset||0;
+    document.body.style.position='fixed';
+    document.body.style.top=(-savedY)+'px';
+    document.body.style.left='0';document.body.style.right='0';document.body.style.width='100%';
+  });
+  document.addEventListener('focusout',e=>{
+    if(!isField(e.target))return;
+    document.body.style.position='';document.body.style.top='';document.body.style.left='';document.body.style.right='';document.body.style.width='';
+    window.scrollTo(0,savedY);
+  });
+})();
 if(KAKAO_LINK){const d=document.getElementById('don');d.style.display='block';document.getElementById('dgo').href=KAKAO_LINK;
   d.onclick=()=>{document.getElementById('dpop').style.display='flex';};document.getElementById('dcl').onclick=()=>{document.getElementById('dpop').style.display='none';};}
 </script>
