@@ -47,6 +47,7 @@ input:focus{border-color:var(--gold)}
 <body>
 <div class="wrap">
 <div id="setup"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><h1>팟<span>계산</span> 연습</h1><button id="don" class="don" style="display:none">☕ 후원</button></div>
+<div class="note" style="margin-bottom:12px;padding:10px 12px;border-radius:10px;border:1px solid var(--gold);background:rgba(201,164,76,.12);color:var(--gb);opacity:1">📢 개발 하루 만에 '띠로리' 님께서 5만점을 돌파함에 따라 난도를 대폭 수정하고 리더보드를 최신화합니다. 양해 바랍니다.</div>
 <div class="note" style="margin-bottom:14px">블라인드(칩 단위)를 골라주세요. 6인 테이블 프리플랍이에요. 본인만의 계산 순서대로 각 팟에 정답을 채워보세요 — 하나만 남기고 다 맞히면 마지막 팟은 자동으로 정답 처리돼요.</div>
 <div class="note" style="margin:-6px 0 14px;color:var(--gb);opacity:.9">배속은 문제 시작 2초 안에만 누를 수 있어요. 누르면 남은 시간이 두 배 빠르게 줄고, 그 상태로 맞히면 하트가 추가돼요 (최대 다섯개), 틀리면 목숨이 줄어요</div>
 <div class="ct" style="margin:0 0 6px"><span>닉네임</span></div>
@@ -152,7 +153,10 @@ function sim(hot){
   return{pos,sb,bb,stack,log,fold,...s};
 }
 
-const LIM={2:10,3:13,4:16,5:20};const FB_URL='https://korea-top-dealer-default-rtdb.firebaseio.com';        // Firebase Realtime Database 주소 (끝에 / 없이)
+const LIM={2:9,3:12,4:15,5:19};const FB_URL='https://korea-top-dealer-default-rtdb.firebaseio.com';        // Firebase Realtime Database 주소 (끝에 / 없이)
+const stageOf=q=>q<=10?0:Math.floor((q-11)/5)+1;
+const curLim=k=>Math.max(5,LIM[k]-stageOf(qn));
+const curBonus=()=>Math.max(1500,5000-stageOf(qn)*500);
 const KAKAO_LINK='https://qr.kakaopay.com/FXUyfgYPV';    // 카카오페이 송금 링크
 const WEB3FORMS_KEY='7493ad80-c0e9-48ac-a353-c2522b66ddb3';    // Web3Forms 액세스 키 (후원자 제보 이메일 알림용)
 const fbBase=()=>FB_URL.replace(/\/$/,'');
@@ -212,7 +216,7 @@ window.addEventListener('pagehide',beaconSubmit);
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')beaconSubmit();});
 const clearCd=()=>{if(cd){clearInterval(cd);cd=null;}};
 function startCd(){
-  cdStarted=true;cdTotal=LIM[G.pots.length]*1000+pend;cdRemaining=cdTotal;pend=0;
+  cdStarted=true;cdTotal=curLim(G.pots.length)*1000+pend;cdRemaining=cdTotal;pend=0;
   const tmb=document.getElementById('tmb'),tms=document.getElementById('tms');
   cd=setInterval(()=>{cdRemaining-=100*cdSpeed;
     if(cdRemaining<=0){clearCd();tmb.style.width='0%';tms.textContent='0초';if(!solved)check(true);return;}
@@ -220,7 +224,7 @@ function startCd(){
 }
 function autoSolve(){
   if(solved||done)return;solved=true;
-  const remMs=cd?Math.max(0,cdRemaining):(LIM[G.pots.length]*1000+pend);
+  const remMs=cd?Math.max(0,cdRemaining):(curLim(G.pots.length)*1000+pend);
   const gain=G.pots.length*100+Math.ceil(remMs/1000)*10;score+=gain;
   let gotHeart=false;if(fast&&lives<5){lives++;gotHeart=true;}
   updHud();
@@ -232,8 +236,9 @@ function award(i){
   if(done||bonusOk[i])return;const inp=document.getElementById('a'+i);
   if(parseInt((inp.value||'').replace(/\D/g,''),10)!==G.pots[i].amt)return;
   bonusOk[i]=true;inp.style.borderColor='#5fae85';
-  if(cd){cdRemaining+=5000;cdTotal+=5000;}else pend+=5000;
-  const f=document.getElementById('tmp');f.textContent='+5초';setTimeout(()=>{f.textContent='';},900);
+  const bn=curBonus();
+  if(cd){cdRemaining+=bn;cdTotal+=bn;}else pend+=bn;
+  const f=document.getElementById('tmp');f.textContent='+'+(bn/1000)+'초';setTimeout(()=>{f.textContent='';},900);
   if(!solved&&!done&&bonusOk.filter(Boolean).length>=G.pots.length-1)autoSolve();
 }
 const endReached=()=>{if(!cdStarted&&!done)startCd();};
@@ -253,14 +258,14 @@ function showSetup(){stop();clearCd();document.getElementById('pop').style.displ
 const nextOrEnd=()=>{if(over)showSetup();else newRound();};
 function newRound(){
   clearCd();cdStarted=false;pend=0;cdSpeed=1;solved=false;
-  qn++;const tg=rnd(2,qn<=5?3:qn<=10?4:5);let r=null;
+  qn++;const tg=qn<=5?rnd(2,3):qn<=10?rnd(2,4):qn<=20?rnd(2,5):5;let r=null;
   for(let t=0;t<8000&&!r;t++){const x=sim(tg>=4);if(x&&x.pots.length===tg)r=x;}
   for(let t=0;t<3000&&!r;t++)r=sim(false);
   G=r;done=false;roundT=Date.now();fast=false;updHud();document.getElementById('nxt').textContent='다음 문제';document.getElementById('pn').textContent='다음 문제';
   clearTimeout(fastTimer);const nxBtn=document.getElementById('nx');nxBtn.disabled=false;nxBtn.textContent='배속';
   fastTimer=setTimeout(()=>{if(!fast&&!done)nxBtn.disabled=true;},2000);
   document.getElementById('bl').textContent=lbl(G.sb)+' / '+lbl(G.bb);
-  document.getElementById('tmb').style.width='100%';document.getElementById('tmb').className='';document.getElementById('tms').textContent='제한 '+LIM[G.pots.length]+'초';
+  document.getElementById('tmb').style.width='100%';document.getElementById('tmb').className='';document.getElementById('tms').textContent='제한 '+curLim(G.pots.length)+'초';
   stop();step=0;draw();timer=setInterval(tick,730);autoB.textContent='정지';
   document.getElementById('ans').innerHTML=G.pots.map((p,i)=>`<div class="ans"><label>${NM[i]}</label><input type="text" inputmode="numeric" id="a${i}" placeholder="금액"></div>`).join('');
   bonusOk=G.pots.map(()=>false);document.getElementById('tmp').textContent='';
@@ -271,7 +276,7 @@ function newRound(){
   document.getElementById('chk').style.display='block';document.getElementById('rvw').style.display='none';document.getElementById('nxt').style.display='none';
 }
 function check(to){
-  if(done)return;done=true;const remMs=cd?Math.max(0,cdRemaining):(LIM[G.pots.length]*1000+pend);clearCd();stop();step=G.log.length;draw();
+  if(done)return;done=true;const remMs=cd?Math.max(0,cdRemaining):(curLim(G.pots.length)*1000+pend);clearCd();stop();step=G.log.length;draw();
   const k=G.pots.length,v=[...Array(k).keys()].map(i=>parseInt((document.getElementById('a'+i).value||'').replace(/\D/g,''),10)||0);
   const res=G.pots.map((p,i)=>p.amt===v[i]),all=res.every(Boolean);
   let gain=0,gotHeart=false;if(all){gain=G.pots.length*100+Math.ceil(remMs/1000)*10;score+=gain;if(fast&&lives<5){lives++;gotHeart=true;}}else lives--;
