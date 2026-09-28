@@ -48,7 +48,7 @@ input:focus{border-color:var(--gold)}
 <div class="wrap">
 <div id="setup"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><h1>팟<span>계산</span> 연습</h1><button id="don" class="don" style="display:none">☕ 후원</button></div>
 <div class="note" style="margin-bottom:14px">블라인드(칩 단위)를 골라주세요. 6인 테이블 프리플랍이에요. 금액은 그 시점까지 넣은 총액(블라인드 포함)이고, 콜 받지 못한 베팅은 반환되어 팟에 포함되지 않아요.</div>
-<div class="note" style="margin:-6px 0 14px;color:var(--gb);opacity:.9">배속을 눌러 문제를 빠르게 풀어내면 하트가 추가돼요 (최대 다섯개)</div>
+<div class="note" style="margin:-6px 0 14px;color:var(--gb);opacity:.9">배속을 누르면 남은 시간이 두 배 빠르게 줄어요. 그 안에 맞히면 하트가 추가돼요 (최대 다섯개), 틀리면 목숨이 줄어요</div>
 <div class="ct" style="margin:0 0 6px"><span>닉네임</span></div>
 <input type="text" id="nick" maxlength="10" placeholder="닉네임 (최대 10자)" style="width:100%;margin-bottom:14px">
 <div class="grid" id="pre"></div>
@@ -139,35 +139,46 @@ function sim(hot){
   return{pos,sb,bb,stack,log,fold,...s};
 }
 
-const LIM={2:10,3:13,4:16,5:20};const FB_URL='https://korea-top-dealer-default-rtdb.firebaseio.com';        // Firebase Realtime Database 주소 (끝에 / 없이)
+const LIM={2:15,3:18,4:21,5:25};const FB_URL='https://korea-top-dealer-default-rtdb.firebaseio.com';        // Firebase Realtime Database 주소 (끝에 / 없이)
 const KAKAO_LINK='https://qr.kakaopay.com/FXUyfgYPV';    // 카카오페이 송금 링크
 const fbBase=()=>FB_URL.replace(/\/$/,'');
-async function fbTop(){
-  let r=await fetch(fbBase()+'/leaderboard.json?orderBy=%22s%22&limitToLast=10');
-  if(!r.ok)r=await fetch(fbBase()+'/leaderboard.json');
+async function fbAll(){
+  const r=await fetch(fbBase()+'/leaderboard.json');
   if(!r.ok){let m='';try{m=(await r.text()).slice(0,80);}catch(e){}throw new Error(r.status+' '+m);}
-  const o=await r.json()||{};return Object.values(o).sort((a,b)=>b.s-a.s||a.t-b.t).slice(0,10);}
+  const o=await r.json()||{};return Object.values(o).sort((a,b)=>b.s-a.s||a.t-b.t);}
+async function fbTop(){return (await fbAll()).slice(0,10);}
 async function fbPost(e){const r=await fetch(fbBase()+'/leaderboard.json',{method:'POST',body:JSON.stringify(e)});if(!r.ok)throw new Error('fb');}
 async function submitScore(n,sc){
-  const local=saveScore(n,sc);if(!FB_URL)return local;
+  const local=saveScore(n,sc);if(!FB_URL)return{rank:local,total:null};
   const e={n,s:sc,t:Date.now()};
-  try{await fbPost(e);const top=await fbTop();const i=top.findIndex(x=>x.t===e.t&&x.n===n&&x.s===sc);return i<0?99:i+1;}catch(err){return local;}
+  try{await fbPost(e);const all=await fbAll();const i=all.findIndex(x=>x.t===e.t&&x.n===n&&x.s===sc);return{rank:i<0?null:i+1,total:all.length};}catch(err){return{rank:local,total:null};}
 }
-let qn=0,score=0,lives=3,over=false,nick='',fast=false,practice=false,roundT=0;let fullHtml='',cd=null,cdStarted=false,cdEnd=0,cdLim=0,pend=0,bonusOk=[];
+let qn=0,score=0,lives=3,over=false,nick='',fast=false,practice=false,roundT=0,gameSubmitted=true;let fullHtml='',cd=null,cdStarted=false,cdRemaining=0,cdTotal=0,cdSpeed=1,pend=0,bonusOk=[];
+function beaconSubmit(){
+  if(gameSubmitted||practice||qn<1||!FB_URL)return;
+  gameSubmitted=true;saveScore(nick,score);
+  try{const blob=new Blob([JSON.stringify({n:nick,s:score,t:Date.now()})],{type:'application/json'});navigator.sendBeacon(fbBase()+'/leaderboard.json',blob);}catch(e){}
+}
+function exitToSetup(){
+  if(!gameSubmitted&&!practice&&qn>=1){gameSubmitted=true;submitScore(nick,score);}
+  showSetup();
+}
+window.addEventListener('pagehide',beaconSubmit);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')beaconSubmit();});
 const clearCd=()=>{if(cd){clearInterval(cd);cd=null;}};
 function startCd(){
-  cdStarted=true;cdLim=LIM[G.pots.length]*1000+pend;cdEnd=Date.now()+cdLim;pend=0;
+  cdStarted=true;cdTotal=LIM[G.pots.length]*1000+pend;cdRemaining=cdTotal;pend=0;
   const tmb=document.getElementById('tmb'),tms=document.getElementById('tms'),a0=document.getElementById('a0');
   if(a0&&document.activeElement.tagName!=='INPUT')a0.focus();
-  cd=setInterval(()=>{const rem=cdEnd-Date.now();
-    if(rem<=0){clearCd();tmb.style.width='0%';tms.textContent='0초';check(true);return;}
-    tmb.style.width=Math.min(100,rem/cdLim*100)+'%';tmb.className=rem<3000?'low':'';tms.textContent=Math.ceil(rem/1000)+'초';},100);
+  cd=setInterval(()=>{cdRemaining-=100*cdSpeed;
+    if(cdRemaining<=0){clearCd();tmb.style.width='0%';tms.textContent='0초';check(true);return;}
+    tmb.style.width=Math.min(100,cdRemaining/cdTotal*100)+'%';tmb.className=cdRemaining<3000?'low':'';tms.textContent=Math.ceil(cdRemaining/1000)+'초';},100);
 }
 function award(i){
   if(done||bonusOk[i])return;const inp=document.getElementById('a'+i);
   if(parseInt((inp.value||'').replace(/\D/g,''),10)!==G.pots[i].amt)return;
   bonusOk[i]=true;inp.style.borderColor='#5fae85';
-  if(cd){cdEnd+=3000;cdLim+=3000;}else pend+=3000;
+  if(cd){cdRemaining+=3000;cdTotal+=3000;}else pend+=3000;
   const f=document.getElementById('tmp');f.textContent='+3초';setTimeout(()=>{f.textContent='';},900);
 }
 const endReached=()=>{if(!cdStarted&&!done)startCd();};
@@ -186,7 +197,7 @@ async function renderHof(){const box=document.getElementById('hof');box.textCont
 function showSetup(){stop();clearCd();document.getElementById('pop').style.display='none';document.getElementById('game').style.display='none';document.getElementById('setup').style.display='block';renderHof();}
 const nextOrEnd=()=>{if(over)showSetup();else newRound();};
 function newRound(){
-  clearCd();cdStarted=false;pend=0;
+  clearCd();cdStarted=false;pend=0;cdSpeed=1;
   qn++;const tg=rnd(2,qn<=5?3:qn<=10?4:5);let r=null;
   for(let t=0;t<8000&&!r;t++){const x=sim(tg>=4);if(x&&x.pots.length===tg)r=x;}
   for(let t=0;t<3000&&!r;t++)r=sim(false);
@@ -201,11 +212,15 @@ function newRound(){
   document.getElementById('chk').style.display='block';document.getElementById('rvw').style.display='none';document.getElementById('nxt').style.display='none';
 }
 function check(to){
-  if(done)return;done=true;const remMs=cd?Math.max(0,cdEnd-Date.now()):(LIM[G.pots.length]*1000+pend);clearCd();stop();step=G.log.length;draw();
+  if(done)return;done=true;const remMs=cd?Math.max(0,cdRemaining):(LIM[G.pots.length]*1000+pend);clearCd();stop();step=G.log.length;draw();
   const k=G.pots.length,v=[...Array(k).keys()].map(i=>parseInt((document.getElementById('a'+i).value||'').replace(/\D/g,''),10)||0);
   const res=G.pots.map((p,i)=>p.amt===v[i]),all=res.every(Boolean);
   let gain=0,gotHeart=false;if(all){gain=G.pots.length*100+Math.ceil(remMs/1000)*10;score+=gain;if(fast&&lives<5){lives++;gotHeart=true;}}else lives--;
-  let extra='';if(lives<=0){over=true;extra=`<div style="margin-top:6px;color:var(--gb)">게임 오버 · 최종 ${fmt(score)}점<span id="rkt"></span></div>`;submitScore(nick,score).then(rk=>{const el=document.getElementById('rkt');if(el)el.textContent=rk<=10?' · 명예의 전당 '+rk+'위':' · 10위권 밖';});document.getElementById('nxt').textContent='랭킹 보기';document.getElementById('pn').textContent='랭킹 보기';}
+  let extra='';if(lives<=0){over=true;extra=`<div style="margin-top:6px;color:var(--gb)">게임 오버 · 최종 ${fmt(score)}점<span id="rkt"></span></div>`;
+    if(!gameSubmitted){gameSubmitted=true;submitScore(nick,score).then(res=>{const el=document.getElementById('rkt');if(!el||!res)return;
+      if(res.total)el.textContent=' · 전체 '+fmt(res.total)+'명 중 '+fmt(res.rank)+'위'+(res.rank<=10?' · 명예의 전당!':'');
+      else el.textContent=res.rank<=10?' · 명예의 전당 '+res.rank+'위':' · 10위권 밖';});}
+    document.getElementById('nxt').textContent='랭킹 보기';document.getElementById('pn').textContent='랭킹 보기';}
   updHud();
   const L=G.pots.map((p,i)=>`<div>${res[i]?'○':'✕'} ${NM[i]} 팟 <b>${fmt(p.amt)}</b> = ${fmt(p.step)} × ${p.el}명${p.dead?` + 데드머니 ${fmt(p.dead)}`:''}${res[i]?'':` (내 답 ${fmt(v[i])})`}</div>`);
   if(G.unc)L.push(`<div style="opacity:.65;margin-top:4px">${G.pos[G.ui]}의 콜 받지 못한 ${fmt(G.unc)}은 반환되어 팟에 포함되지 않아요.</div>`);
@@ -220,19 +235,19 @@ function check(to){
 }
 document.getElementById('rs').onclick=()=>{stop();step=0;draw();};
 document.getElementById('nx').onclick=()=>{
-  if(!done&&!fast&&Date.now()-roundT<2000){fast=true;const f=document.getElementById('tmp');f.textContent='정답 시 ♥+1';setTimeout(()=>{f.textContent='';},1400);}
+  if(!done&&!fast){fast=true;cdSpeed=2;const f=document.getElementById('tmp');f.textContent='배속! 정답 시 ♥+1';setTimeout(()=>{f.textContent='';},1400);}
   stop();step=G.log.length;draw();endReached();};
 autoB.onclick=()=>{if(timer){stop();return;}if(step>=G.log.length){step=0;draw();}timer=setInterval(tick,730);autoB.textContent='정지';};
 document.getElementById('chk').onclick=()=>check(false);
 document.getElementById('nxt').onclick=nextOrEnd;document.getElementById('pn').onclick=nextOrEnd;
 document.getElementById('pr').onclick=()=>{document.getElementById('pop').style.display='none';};
 document.getElementById('rvw').onclick=()=>{document.getElementById('pb').innerHTML=fullHtml;document.getElementById('pr').textContent='닫기';document.getElementById('pop').style.display='flex';};
-const go=(a,b)=>{const ni=document.getElementById('nick'),nm=ni.value.trim().slice(0,10);if(!nm){ni.style.borderColor='#c4574e';ni.focus();return;}ni.style.borderColor='';nick=nm;try{localStorage.setItem('potNick',nm);}catch(e){}BLV=[a,b];qn=0;practice=false;score=0;lives=3;over=false;document.getElementById('setup').style.display='none';document.getElementById('game').style.display='flex';newRound();};
+const go=(a,b)=>{const ni=document.getElementById('nick'),nm=ni.value.trim().slice(0,10);if(!nm){ni.style.borderColor='#c4574e';ni.focus();return;}ni.style.borderColor='';nick=nm;try{localStorage.setItem('potNick',nm);}catch(e){}BLV=[a,b];qn=0;practice=false;score=0;lives=3;over=false;gameSubmitted=false;document.getElementById('setup').style.display='none';document.getElementById('game').style.display='flex';newRound();};
 document.getElementById('pre').innerHTML=PRE.map(([a,b])=>`<button data-a="${a}" data-b="${b}">${lbl(a)} / ${lbl(b)}</button>`).join('');
 document.querySelectorAll('#pre button').forEach(x=>x.onclick=()=>go(+x.dataset.a,+x.dataset.b));
 document.getElementById('cgo').onclick=()=>{const a=parseInt(document.getElementById('csb').value.replace(/\D/g,''),10),b=parseInt(document.getElementById('cbb').value.replace(/\D/g,''),10);
   if(a>0&&b>=a)go(a,b);else{document.getElementById('cbb').style.borderColor='#c4574e';}};
-document.getElementById('chg').onclick=showSetup;
+document.getElementById('chg').onclick=exitToSetup;
 try{document.getElementById('nick').value=localStorage.getItem('potNick')||'';}catch(e){}
 renderHof();
 if(KAKAO_LINK){const d=document.getElementById('don');d.style.display='block';document.getElementById('dgo').href=KAKAO_LINK;
