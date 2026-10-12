@@ -194,9 +194,9 @@ const WEB3FORMS_KEY='7493ad80-c0e9-48ac-a353-c2522b66ddb3';    // Web3Forms 액�
 const fbBase=()=>FB_URL.replace(/\/$/,'');
 // App Check: 이 게임 페이지에서 보낸 요청만 데이터베이스가 받도록 증명 토큰을 붙임 (외부에서 직접 점수 넣기 차단)
 const FB_CONFIG={apiKey:"AIzaSyD_KzIgO7ESl3-Q2Av_w3LgNS8tZBHMaF8",authDomain:"korea-top-dealer.firebaseapp.com",databaseURL:FB_URL,projectId:"korea-top-dealer",storageBucket:"korea-top-dealer.firebasestorage.app",messagingSenderId:"971883585789",appId:"1:971883585789:web:5555357e6ed6bb77075e94"};
-const RECAPTCHA_SITE_KEY='6Le_xestAAAAAHdo0IEwuBOmkn-H8zVIGF4-AY_0';
+const RECAPTCHA_SITE_KEY='6Ldu5ustAAAAANyAMC1dbLdd9cRvwkHXrKh0v74X';   // Fraud Defense(reCAPTCHA Enterprise) 키
 let fdb=null;
-try{if(window.firebase){firebase.initializeApp(FB_CONFIG);firebase.appCheck().activate(new firebase.appCheck.ReCaptchaV3Provider(RECAPTCHA_SITE_KEY),true);fdb=firebase.database();}}catch(e){fdb=null;}
+try{if(window.firebase){firebase.initializeApp(FB_CONFIG);firebase.appCheck().activate(new firebase.appCheck.ReCaptchaEnterpriseProvider(RECAPTCHA_SITE_KEY),true);fdb=firebase.database();}}catch(e){fdb=null;}
 const withTimeout=(p,ms=10000)=>Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),ms))]);
 async function dbGet(path,q){
   if(fdb){let ref=fdb.ref(path);if(q)ref=ref.orderByChild(q.by).limitToLast(q.last);const s=await withTimeout(ref.once('value'));return s.val()||{};}
