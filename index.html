@@ -42,6 +42,7 @@ input:focus{border-color:var(--gold)}
 #pt{font-size:18px;font-weight:700;margin-bottom:8px}#pt.ok{color:var(--grn)}#pt.no{color:var(--red)}
 #pb{font-size:13px;line-height:1.75;margin-bottom:12px;font-variant-numeric:tabular-nums}
 #pb b{color:var(--gb)}
+.grecaptcha-badge{visibility:hidden}
 </style>
 </head>
 <body>
@@ -58,6 +59,7 @@ input:focus{border-color:var(--gold)}
 <button class="main" id="cgo" style="width:100%">이 블라인드로 시작</button>
 <div id="hof"></div>
 <div id="adbox" style="margin-top:18px;text-align:center"></div>
+<div class="note" style="margin-top:14px;font-size:10.5px;opacity:.4;text-align:center">This site is protected by reCAPTCHA and the Google <a href="https://policies.google.com/privacy" target="_blank" rel="noopener" style="color:inherit">Privacy Policy</a> and <a href="https://policies.google.com/terms" target="_blank" rel="noopener" style="color:inherit">Terms of Service</a> apply.</div>
 </div>
 <div id="game" style="display:none">
 <header><h1>팟<span>계산</span><small id="bl"></small></h1><div class="stats">Q<b id="qn">1</b> &nbsp;<b id="sc">0</b>점 &nbsp;<b id="lv" style="color:#c4574e">♥♥♥</b></div></header>
@@ -83,6 +85,9 @@ input:focus{border-color:var(--gold)}
 </div></div>
 <div id="pop"><div class="box"><div id="pt"></div><div id="pb"></div><div class="btns"><button class="main sec" id="pr">검토하기</button><button class="main" id="pn">다음 문제</button></div></div></div>
 </div>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-check-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
 <script>
 
 const P6=["UTG","HJ","CO","BTN","SB","BB"];
@@ -169,18 +174,25 @@ const curBonus=()=>Math.max(1500,5000-stageOf(qn)*500);
 const KAKAO_LINK='https://qr.kakaopay.com/FXUyfgYPV';    // 카카오페이 송금 링크
 const WEB3FORMS_KEY='7493ad80-c0e9-48ac-a353-c2522b66ddb3';    // Web3Forms 액세스 키 (후원자 제보 이메일 알림용)
 const fbBase=()=>FB_URL.replace(/\/$/,'');
-async function fbAll(){
-  const r=await fetch(fbBase()+'/leaderboard.json');
-  if(!r.ok){let m='';try{m=(await r.text()).slice(0,80);}catch(e){}throw new Error(r.status+' '+m);}
-  const o=await r.json()||{};return Object.values(o).sort((a,b)=>b.s-a.s||a.t-b.t);}
-async function fbTop(){
-  let r=await fetch(fbBase()+'/leaderboard.json?orderBy=%22s%22&limitToLast=10');
-  if(!r.ok)r=await fetch(fbBase()+'/leaderboard.json');
-  if(!r.ok){let m='';try{m=(await r.text()).slice(0,80);}catch(e){}throw new Error(r.status+' '+m);}
-  const o=await r.json()||{};return Object.values(o).sort((a,b)=>b.s-a.s||a.t-b.t).slice(0,10);}
-async function fbPost(e){const r=await fetch(fbBase()+'/leaderboard.json',{method:'POST',body:JSON.stringify(e)});if(!r.ok)throw new Error('fb');}
-async function fbDonors(){const r=await fetch(fbBase()+'/donors.json');if(!r.ok)throw new Error('fb');const o=await r.json()||{};return Object.values(o).sort((a,b)=>b.t-a.t);}
-async function submitDonorReport(nick,real){const r=await fetch(fbBase()+'/donor_reports.json',{method:'POST',body:JSON.stringify({nick,real,t:Date.now()})});if(!r.ok)throw new Error('fb');}
+// App Check: 이 게임 페이지에서 보낸 요청만 데이터베이스가 받도록 증명 토큰을 붙임 (외부에서 직접 점수 넣기 차단)
+const FB_CONFIG={apiKey:"AIzaSyD_KzIgO7ESl3-Q2Av_w3LgNS8tZBHMaF8",authDomain:"korea-top-dealer.firebaseapp.com",databaseURL:FB_URL,projectId:"korea-top-dealer",storageBucket:"korea-top-dealer.firebasestorage.app",messagingSenderId:"971883585789",appId:"1:971883585789:web:5555357e6ed6bb77075e94"};
+const RECAPTCHA_SITE_KEY='6Le_xestAAAAAHdo0IEwuBOmkn-H8zVIGF4-AY_0';
+let fdb=null;
+try{if(window.firebase){firebase.initializeApp(FB_CONFIG);firebase.appCheck().activate(new firebase.appCheck.ReCaptchaV3Provider(RECAPTCHA_SITE_KEY),true);fdb=firebase.database();}}catch(e){fdb=null;}
+const withTimeout=(p,ms=10000)=>Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),ms))]);
+async function dbGet(path,q){
+  if(fdb){let ref=fdb.ref(path);if(q)ref=ref.orderByChild(q.by).limitToLast(q.last);const s=await withTimeout(ref.once('value'));return s.val()||{};}
+  const r=await fetch(fbBase()+'/'+path+'.json'+(q?`?orderBy=%22${q.by}%22&limitToLast=${q.last}`:''));
+  if(!r.ok)throw new Error(String(r.status));return await r.json()||{};}
+async function dbPush(path,obj){
+  if(fdb){await withTimeout(fdb.ref(path).push(obj));return;}
+  const r=await fetch(fbBase()+'/'+path+'.json',{method:'POST',body:JSON.stringify(obj)});if(!r.ok)throw new Error('fb');}
+const bySc=(a,b)=>b.s-a.s||a.t-b.t;
+async function fbAll(){return Object.values(await dbGet('leaderboard')).sort(bySc);}
+async function fbTop(){return Object.values(await dbGet('leaderboard',{by:'s',last:10})).sort(bySc).slice(0,10);}
+async function fbPost(e){await dbPush('leaderboard',e);}
+async function fbDonors(){return Object.values(await dbGet('donors')).sort((a,b)=>b.t-a.t);}
+async function submitDonorReport(nick,real){await dbPush('donor_reports',{nick,real,t:Date.now()});}
 function sendDonorEmail(nick,real){
   if(!WEB3FORMS_KEY)return;
   fetch('https://api.web3forms.com/submit',{
