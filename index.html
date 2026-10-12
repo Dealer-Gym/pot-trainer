@@ -52,7 +52,8 @@ input:focus{border-color:var(--gold)}
 <div class="note" style="margin:-6px 0 14px;color:var(--gb);opacity:.9">배속은 문제 시작 2초 안에만 누를 수 있어요. 누르면 남은 시간이 두 배 빠르게 줄고, 그 상태로 맞히면 하트가 추가돼요 (최대 다섯개), 틀리면 목숨이 줄어요</div>
 <div id="resume"></div>
 <div class="ct" style="margin:0 0 6px"><span>닉네임</span></div>
-<input type="text" id="nick" maxlength="10" placeholder="닉네임 (최대 10자)" style="width:100%;margin-bottom:14px">
+<input type="text" id="nick" maxlength="10" placeholder="닉네임 (최대 10자)" style="width:100%;margin-bottom:6px">
+<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:14px;min-height:28px"><span id="nkst" class="note"></span><button id="clb" class="don" style="flex:none">🔒 닉네임 찜하기</button></div>
 <div class="grid" id="pre"></div>
 <div class="ct" style="margin:16px 0 6px"><span>직접 입력 (SB / BB)</span></div>
 <div class="ans"><input type="text" inputmode="numeric" id="csb" placeholder="SB"><span>/</span><input type="text" inputmode="numeric" id="cbb" placeholder="BB"></div>
@@ -82,6 +83,23 @@ input:focus{border-color:var(--gold)}
   <button class="main" id="dsub" style="width:100%;margin-top:10px">개발자에게 닉네임 전송하기</button>
   <div id="dmsg" class="note" style="margin-top:8px;display:none"></div>
 </div>
+</div></div>
+<div id="cpop" style="display:none;position:absolute;inset:0;background:rgba(0,0,0,.55);align-items:center;justify-content:center;padding:18px;z-index:7"><div class="box">
+<div style="font-size:17px;font-weight:700;margin-bottom:8px">🔒 닉네임 찜하기</div>
+<div class="note" style="margin-bottom:12px">비밀번호를 걸어두면 다른 사람이 이 닉네임으로 기록을 올릴 수 없어요. 이 폰에선 한 번만 입력하면 돼요.</div>
+<div class="ans"><input type="text" id="cnick" maxlength="10" placeholder="닉네임"></div>
+<div class="ans" style="margin-top:8px"><input type="password" id="cpin" inputmode="numeric" maxlength="8" placeholder="비밀번호 (숫자 4~8자리)"></div>
+<div class="ans" style="margin-top:8px"><input type="password" id="cpin2" inputmode="numeric" maxlength="8" placeholder="비밀번호 한 번 더"></div>
+<div class="note" style="margin-top:8px;color:var(--gb);opacity:.9">잊어버리면 찾을 수 없어요. 개발자에게 말하면 찜을 풀 수는 있어요.</div>
+<div id="cmsg" class="note" style="margin-top:8px;display:none"></div>
+<div class="btns" style="margin-top:12px"><button class="main sec" id="ccl">닫기</button><button class="main" id="cgo2">찜하기</button></div>
+</div></div>
+<div id="ppop" style="display:none;position:absolute;inset:0;background:rgba(0,0,0,.55);align-items:center;justify-content:center;padding:18px;z-index:7"><div class="box">
+<div style="font-size:17px;font-weight:700;margin-bottom:8px">🔒 찜된 닉네임이에요</div>
+<div class="note" style="margin-bottom:12px"><b id="pnick" style="color:var(--gb)"></b> 의 비밀번호를 입력해주세요.</div>
+<div class="ans"><input type="password" id="ppin" inputmode="numeric" maxlength="8" placeholder="비밀번호"></div>
+<div id="pmsg" class="note" style="margin-top:8px;display:none"></div>
+<div class="btns" style="margin-top:12px"><button class="main sec" id="pcl">다른 닉네임 쓰기</button><button class="main" id="pgo">확인</button></div>
 </div></div>
 <div id="pop"><div class="box"><div id="pt"></div><div id="pb"></div><div class="btns"><button class="main sec" id="pr">검토하기</button><button class="main" id="pn">다음 문제</button></div></div></div>
 </div>
@@ -187,6 +205,20 @@ async function dbGet(path,q){
 async function dbPush(path,obj){
   if(fdb){await withTimeout(fdb.ref(path).push(obj));return;}
   const r=await fetch(fbBase()+'/'+path+'.json',{method:'POST',body:JSON.stringify(obj)});if(!r.ok)throw new Error('fb');}
+async function dbUpdate(map){ // 여러 위치에 한 번에 쓰기 — 전부 성공하거나 전부 실패
+  if(fdb){await withTimeout(fdb.ref().update(map));return;}
+  const r=await fetch(fbBase()+'/.json',{method:'PATCH',body:JSON.stringify(map)});if(!r.ok)throw new Error(String(r.status));}
+const newKey=()=>fdb?fdb.ref('leaderboard').push().key:'-'+Date.now().toString(36)+Math.random().toString(36).slice(2,10);
+const isDenied=e=>/permission|denied|401|403/i.test(String(e&&(e.code||e.message)));
+// ── 닉네임 찜하기: 비밀번호는 해시로만 저장되고, 그 칸은 아무도 못 읽음. 대조는 Firebase 규칙이 서버에서 함 ──
+const cleanNick=v=>String(v||'').replace(/[.$#\[\]\/]/g,'').trim().slice(0,10);
+async function pinHash(n,pin){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode('pot-trainer|'+n+'|'+pin));return[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');}
+const getPin=n=>{try{return localStorage.getItem('potPin:'+n)||'';}catch(e){return '';}};
+const setPin=(n,p)=>{try{p?localStorage.setItem('potPin:'+n,p):localStorage.removeItem('potPin:'+n);}catch(e){}};
+async function isClaimed(n){try{return (await withTimeout(dbGet('claimed/'+n),5000))===true;}catch(e){return false;}}
+async function checkPin(n,pin){ // 맞으면 true, 틀리면 false, 연결 문제면 null
+  try{await dbUpdate({['pinchecks/'+newKey()]:{n,k:await pinHash(n,pin),t:Date.now()}});return true;}catch(e){return isDenied(e)?false:null;}}
+async function claimNick(n,pin){await dbUpdate({['claims/'+n]:{k:await pinHash(n,pin),t:Date.now()},['claimed/'+n]:true});}
 const bySc=(a,b)=>b.s-a.s||a.t-b.t;
 // 같은 닉네임은 최고 기록 하나만 순위에 표시 (데이터는 그대로 두고 보여줄 때만 합침)
 const bestByName=list=>{const m=new Map();for(const e of list){const o=m.get(e.n);if(!o||bySc(e,o)<0)m.set(e.n,e);}return[...m.values()].sort(bySc);};
@@ -222,8 +254,11 @@ async function renderPopupDonors(){
 }
 async function submitScore(n,sc){
   const local=saveScore(n,sc);if(!FB_URL)return{rank:local,total:null};
-  const e={n,s:sc,t:Date.now()};
-  try{await fbPost(e);const all=await fbAll();const i=all.findIndex(x=>x.n===n);return{rank:i<0?null:i+1,total:all.length,best:i>=0&&all[i].s===sc};}catch(err){return{rank:local,total:null};}
+  const e={n,s:sc,t:Date.now()},pin=getPin(n);
+  try{
+    if(pin){const id=newKey();await dbUpdate({['leaderboard/'+id]:e,['proofs/'+id]:{k:await pinHash(n,pin)}});}else await fbPost(e);
+    const all=await fbAll();const i=all.findIndex(x=>x.n===n);return{rank:i<0?null:i+1,total:all.length,best:i>=0&&all[i].s===sc};
+  }catch(err){return{rank:local,total:null,denied:isDenied(err)};}
 }
 let qn=0,score=0,lives=3,over=false,nick='',fast=false,practice=false,roundT=0,gameSubmitted=true,solved=false,fastTimer=null;let fullHtml='',cd=null,cdStarted=false,cdRemaining=0,cdTotal=0,cdSpeed=1,pend=0,bonusOk=[];
 // 진행 중인 게임을 기기에 저장 — 카톡/인스타 갔다 와서 페이지가 새로고침돼도 이어하기 가능
@@ -290,11 +325,12 @@ async function renderHof(){const box=document.getElementById('hof');box.textCont
   const h=document.createElement('div');h.className='ct';h.style.margin='22px 0 6px';const t=document.createElement('span');t.textContent='명예의 전당';h.appendChild(t);box.appendChild(h);
   const body=document.createElement('div');box.appendChild(body);
   let a=[],shared=false,why='';
-  if(FB_URL){body.innerHTML='<div class="note">불러오는 중…</div>';try{a=await fbTop();shared=true;}catch(e){why=(e&&e.message)||'network';}}
+  let locked={};
+  if(FB_URL){body.innerHTML='<div class="note">불러오는 중…</div>';try{[a,locked]=await Promise.all([fbTop(),dbGet('claimed').catch(()=>({}))]);shared=true;}catch(e){why=(e&&e.message)||'network';}}
   if(!shared){try{a=JSON.parse(localStorage.getItem('potHof')||'[]');}catch(e){a=[];}}
   body.textContent='';
   if(!a.length){const n=document.createElement('div');n.className='note';n.textContent='아직 기록이 없어요. 첫 기록을 남겨보세요.';body.appendChild(n);return;}
-  a.slice(0,10).forEach((e,i)=>{const r=document.createElement('div');r.className='hr';const l=document.createElement('span');l.textContent=(i+1)+'  '+e.n;const v=document.createElement('span');v.textContent=fmt(e.s)+'점';r.append(l,v);body.appendChild(r);});
+  a.slice(0,10).forEach((e,i)=>{const r=document.createElement('div');r.className='hr';const l=document.createElement('span');l.textContent=(i+1)+'  '+e.n+(locked[e.n]===true?' 🔒':'');const v=document.createElement('span');v.textContent=fmt(e.s)+'점';r.append(l,v);body.appendChild(r);});
   const f=document.createElement('div');f.className='note';f.style.marginTop='6px';f.textContent=shared?'전체 플레이어 기록이에요.':FB_URL?'서버에 연결하지 못해 이 기기 기록을 보여줘요 ('+why+')':'이 기기에 저장된 기록이에요.';body.appendChild(f);}
 function showSetup(){stop();clearCd();document.getElementById('pop').style.display='none';document.getElementById('game').style.display='none';document.getElementById('setup').style.display='block';renderResume();renderHof();}
 const nextOrEnd=()=>{if(over)showSetup();else newRound();};
@@ -330,6 +366,7 @@ function check(to){
   let extra='';if(lives<=0){over=true;extra=`<div style="margin-top:6px;color:var(--gb)">게임 오버 · 최종 ${fmt(score)}점<span id="rkt"></span></div>`;
     if(!gameSubmitted){gameSubmitted=true;submitScore(nick,score).then(res=>{const el=document.getElementById('rkt');if(!el||!res)return;
       if(res.total)el.textContent=' · 전체 '+fmt(res.total)+'명 중 '+fmt(res.rank)+'위'+(res.best?'':' (내 최고 기록 기준)')+(res.rank<=10?' · 명예의 전당!':'');
+      else if(res.denied)el.textContent=' · 찜된 닉네임이라 비밀번호 없이 기록되지 않았어요';
       else el.textContent=res.rank<=10?' · 명예의 전당 '+res.rank+'위':' · 10위권 밖';});}
     document.getElementById('nxt').textContent='랭킹 보기';document.getElementById('pn').textContent='랭킹 보기';}
   updHud();
@@ -354,7 +391,19 @@ document.getElementById('chk').onclick=()=>{if(solved)nextOrEnd();else check(fal
 document.getElementById('nxt').onclick=nextOrEnd;document.getElementById('pn').onclick=nextOrEnd;
 document.getElementById('pr').onclick=()=>{document.getElementById('pop').style.display='none';};
 document.getElementById('rvw').onclick=()=>{document.getElementById('pb').innerHTML=fullHtml;document.getElementById('pr').textContent='닫기';document.getElementById('pop').style.display='flex';};
-const go=(a,b)=>{const ni=document.getElementById('nick'),nm=ni.value.trim().slice(0,10);if(!nm){ni.style.borderColor='#c4574e';ni.focus();return;}ni.style.borderColor='';const old=loadSave();if(old)submitSaved(old);nick=nm;try{localStorage.setItem('potNick',nm);}catch(e){}BLV=[a,b];qn=0;practice=false;score=0;lives=3;over=false;gameSubmitted=false;document.getElementById('setup').style.display='none';document.getElementById('game').style.display='flex';newRound();};
+let starting=false;
+async function go(a,b){
+  const ni=document.getElementById('nick'),nm=cleanNick(ni.value);ni.value=nm;if(!nm){ni.style.borderColor='#c4574e';ni.focus();return;}ni.style.borderColor='';
+  if(starting)return;starting=true;const st=document.getElementById('nkst');st.textContent='닉네임 확인 중…';
+  try{
+    if(await isClaimed(nm)){
+      const saved=getPin(nm),ok=saved?await checkPin(nm,saved):false;
+      if(ok===false){setPin(nm,'');st.textContent='';askPin(nm,()=>startGame(a,b,nm));return;}
+    }
+    startGame(a,b,nm);
+  }finally{starting=false;updNickStatus();}
+}
+function startGame(a,b,nm){const old=loadSave();if(old)submitSaved(old);nick=nm;try{localStorage.setItem('potNick',nm);}catch(e){}BLV=[a,b];qn=0;practice=false;score=0;lives=3;over=false;gameSubmitted=false;document.getElementById('setup').style.display='none';document.getElementById('game').style.display='flex';newRound();}
 document.getElementById('pre').innerHTML=PRE.map(([a,b])=>`<button data-a="${a}" data-b="${b}">${lbl(a)} / ${lbl(b)}</button>`).join('');
 initAd();
 document.querySelectorAll('#pre button').forEach(x=>x.onclick=()=>go(+x.dataset.a,+x.dataset.b));
@@ -362,6 +411,44 @@ document.getElementById('cgo').onclick=()=>{const a=parseInt(document.getElement
   if(a>0&&b>=a)go(a,b);else{document.getElementById('cbb').style.borderColor='#c4574e';}};
 document.getElementById('chg').onclick=exitToSetup;
 try{document.getElementById('nick').value=localStorage.getItem('potNick')||'';}catch(e){}
+// ── 닉네임 찜하기 화면 ──
+const $=id=>document.getElementById(id);
+const msg=(id,t,bad)=>{const m=$(id);m.style.display=t?'block':'none';m.textContent=t||'';m.style.color=bad?'#e07a70':'var(--grn)';m.style.opacity=1;};
+let nkT=null,nkSeq=0;
+async function updNickStatus(){
+  const nm=cleanNick($('nick').value),st=$('nkst'),btn=$('clb'),seq=++nkSeq;
+  if(!nm){st.textContent='';btn.style.display='';return;}
+  const c=await isClaimed(nm);if(seq!==nkSeq||starting)return;
+  if(c){st.textContent=getPin(nm)?'🔒 내가 찜한 닉네임':'🔒 찜된 닉네임 (비밀번호 필요)';btn.style.display='none';}
+  else{st.textContent='';btn.style.display='';}
+}
+$('nick').addEventListener('input',()=>{clearTimeout(nkT);nkT=setTimeout(updNickStatus,500);});
+$('clb').onclick=()=>{$('cnick').value=cleanNick($('nick').value);$('cpin').value='';$('cpin2').value='';msg('cmsg','');$('cgo2').disabled=false;$('cpop').style.display='flex';};
+$('ccl').onclick=()=>{$('cpop').style.display='none';};
+$('cgo2').onclick=async()=>{
+  const nm=cleanNick($('cnick').value),p1=$('cpin').value,p2=$('cpin2').value;$('cnick').value=nm;
+  if(!nm)return msg('cmsg','닉네임을 입력해주세요.',true);
+  if(!/^\d{4,8}$/.test(p1))return msg('cmsg','비밀번호는 숫자 4~8자리로 해주세요.',true);
+  if(p1!==p2)return msg('cmsg','두 비밀번호가 달라요.',true);
+  $('cgo2').disabled=true;msg('cmsg','등록 중…');
+  if(await isClaimed(nm)){$('cgo2').disabled=false;return msg('cmsg','이미 누가 찜한 닉네임이에요. 다른 닉네임을 골라주세요.',true);}
+  try{await claimNick(nm,p1);setPin(nm,p1);$('nick').value=nm;try{localStorage.setItem('potNick',nm);}catch(e){}
+    msg('cmsg','찜 완료! 이제 "'+nm+'"은(는) 내 닉네임이에요 🔒');setTimeout(()=>{$('cpop').style.display='none';updNickStatus();renderHof();},1200);}
+  catch(e){$('cgo2').disabled=false;msg('cmsg',isDenied(e)?'이미 누가 찜한 닉네임이거나, 아직 찜하기가 준비 중이에요.':'연결이 불안정해요. 잠시 후 다시 시도해주세요.',true);}
+};
+let pinNext=null;
+function askPin(nm,next){pinNext=next;$('pnick').textContent=nm;$('ppin').value='';msg('pmsg','');$('pgo').disabled=false;$('ppop').style.display='flex';}
+$('pcl').onclick=()=>{$('ppop').style.display='none';pinNext=null;$('nick').focus();};
+$('pgo').onclick=async()=>{
+  const nm=$('pnick').textContent,p=$('ppin').value;if(!p)return msg('pmsg','비밀번호를 입력해주세요.',true);
+  $('pgo').disabled=true;msg('pmsg','확인 중…');
+  const ok=await checkPin(nm,p);$('pgo').disabled=false;
+  if(ok===false)return msg('pmsg','비밀번호가 달라요.',true);
+  setPin(nm,p);$('ppop').style.display='none';
+  if(ok===null){}// 연결 문제로 확인 못 함 — 일단 시작, 기록 올릴 때 다시 대조됨
+  const f=pinNext;pinNext=null;if(f)f();
+};
+updNickStatus();
 {const s=loadSave();if(s&&Date.now()-(s.ts||0)>SAVE_TTL)submitSaved(s);}
 renderResume();
 renderHof();
