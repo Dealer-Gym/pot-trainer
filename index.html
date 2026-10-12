@@ -50,13 +50,16 @@ input:focus{border-color:var(--gold)}
 <div class="note" style="margin-bottom:12px;padding:10px 12px;border-radius:10px;border:1px solid var(--gold);background:rgba(201,164,76,.12);color:var(--gb);opacity:1">📢 개발 하루 만에 '띠로리' 님께서 5만점을 돌파함에 따라 난도를 대폭 수정하고 리더보드를 최신화합니다. 양해 바랍니다.</div>
 <div class="note" style="margin-bottom:14px">블라인드(칩 단위)를 골라주세요. 6인 테이블 프리플랍이에요. 본인만의 계산 순서대로 각 팟에 정답을 채워보세요 — 하나만 남기고 다 맞히면 마지막 팟은 자동으로 정답 처리돼요.</div>
 <div class="note" style="margin:-6px 0 14px;color:var(--gb);opacity:.9">배속은 문제 시작 2초 안에만 누를 수 있어요. 누르면 남은 시간이 두 배 빠르게 줄고, 그 상태로 맞히면 하트가 추가돼요 (최대 다섯개), 틀리면 목숨이 줄어요</div>
+<div id="resume"></div>
 <div class="ct" style="margin:0 0 6px"><span>닉네임</span></div>
 <input type="text" id="nick" maxlength="10" placeholder="닉네임 (최대 10자)" style="width:100%;margin-bottom:14px">
 <div class="grid" id="pre"></div>
 <div class="ct" style="margin:16px 0 6px"><span>직접 입력 (SB / BB)</span></div>
 <div class="ans"><input type="text" inputmode="numeric" id="csb" placeholder="SB"><span>/</span><input type="text" inputmode="numeric" id="cbb" placeholder="BB"></div>
 <button class="main" id="cgo" style="width:100%">이 블라인드로 시작</button>
-<div id="hof"></div></div>
+<div id="hof"></div>
+<div id="adbox" style="margin-top:18px;text-align:center"></div>
+</div>
 <div id="game" style="display:none">
 <header><h1>팟<span>계산</span><small id="bl"></small></h1><div class="stats">Q<b id="qn">1</b> &nbsp;<b id="sc">0</b>점 &nbsp;<b id="lv" style="color:#c4574e">♥♥♥</b></div></header>
 <div id="tbw"><svg id="tb" viewBox="0 0 400 290" role="img" aria-label="포커 테이블"></svg></div>
@@ -154,6 +157,13 @@ function sim(hot){
 }
 
 const LIM={2:9,3:12,4:15,5:19};const FB_URL='https://korea-top-dealer-default-rtdb.firebaseio.com';        // Firebase Realtime Database 주소 (끝에 / 없이)
+const AD_UNIT_ID='';        // 카카오 애드핏(adfit.kakao.com)에서 발급받은 광고단위 ID. 비어있으면 광고 영역 자체가 안 뜸.
+function initAd(){
+  if(!AD_UNIT_ID)return;
+  const box=document.getElementById('adbox');if(!box)return;
+  box.innerHTML='<ins class="kakao_ad_area" style="display:none" data-ad-unit="'+AD_UNIT_ID+'" data-ad-width="320" data-ad-height="50"></ins>';
+  const s=document.createElement('script');s.src='//t1.daumcdn.net/kas/static/ba.min.js';s.async=true;document.body.appendChild(s);
+}
 const stageOf=q=>q<=10?0:Math.floor((q-11)/5)+1;
 const curLim=k=>Math.max(5,LIM[k]-stageOf(qn));
 const curBonus=()=>Math.max(1500,5000-stageOf(qn)*500);
@@ -203,17 +213,35 @@ async function submitScore(n,sc){
   try{await fbPost(e);const all=await fbAll();const i=all.findIndex(x=>x.t===e.t&&x.n===n&&x.s===sc);return{rank:i<0?null:i+1,total:all.length};}catch(err){return{rank:local,total:null};}
 }
 let qn=0,score=0,lives=3,over=false,nick='',fast=false,practice=false,roundT=0,gameSubmitted=true,solved=false,fastTimer=null;let fullHtml='',cd=null,cdStarted=false,cdRemaining=0,cdTotal=0,cdSpeed=1,pend=0,bonusOk=[];
-function beaconSubmit(){
-  if(gameSubmitted||practice||qn<1||!FB_URL)return;
-  gameSubmitted=true;saveScore(nick,score);
-  try{const blob=new Blob([JSON.stringify({n:nick,s:score,t:Date.now()})],{type:'application/json'});navigator.sendBeacon(fbBase()+'/leaderboard.json',blob);}catch(e){}
+// 진행 중인 게임을 기기에 저장 — 카톡/인스타 갔다 와서 페이지가 새로고침돼도 이어하기 가능
+const SAVE_KEY='potSave',SAVE_TTL=12*3600*1000;
+function saveGame(){
+  if(practice||over||gameSubmitted||qn<1)return;
+  try{localStorage.setItem(SAVE_KEY,JSON.stringify({nick,BLV,qn,score,lives,G:(done||solved)?null:G,ts:Date.now()}));}catch(e){}
+}
+function clearSave(){try{localStorage.removeItem(SAVE_KEY);}catch(e){}}
+function loadSave(){try{const s=JSON.parse(localStorage.getItem(SAVE_KEY)||'null');return s&&s.qn>=1&&s.BLV?s:null;}catch(e){return null;}}
+function submitSaved(s){clearSave();if(s&&s.qn>=1)submitScore(s.nick,s.score);}
+function renderResume(){
+  const box=document.getElementById('resume'),s=loadSave();
+  if(!s){box.innerHTML='';return;}
+  box.innerHTML=`<div class="note" style="margin-bottom:14px;padding:10px 12px;border-radius:10px;border:1px solid var(--grn);opacity:1">
+    <div style="margin-bottom:8px">이어서 할 게임이 있어요 · <b>${String(s.nick).replace(/[<>&"]/g,"")}</b> · Q${s.qn} · ${fmt(s.score)}점 · ${'♥'.repeat(Math.max(0,s.lives))}</div>
+    <div class="btns"><button class="main sec" id="rsnew">기록 저장하고 새로 시작</button><button class="main" id="rsgo">이어하기</button></div></div>`;
+  document.getElementById('rsgo').onclick=()=>resumeGame(s);
+  document.getElementById('rsnew').onclick=()=>{submitSaved(s);renderResume();setTimeout(renderHof,800);};
+}
+function resumeGame(s){
+  nick=s.nick;BLV=s.BLV;score=s.score;lives=s.lives;practice=false;over=false;gameSubmitted=false;
+  document.getElementById('setup').style.display='none';document.getElementById('game').style.display='flex';
+  if(s.G){qn=s.qn;setupRound(s.G);}else{qn=s.qn;newRound();}
 }
 function exitToSetup(){
   if(!gameSubmitted&&!practice&&qn>=1){gameSubmitted=true;submitScore(nick,score);}
-  showSetup();
+  clearSave();showSetup();
 }
-window.addEventListener('pagehide',beaconSubmit);
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')beaconSubmit();});
+window.addEventListener('pagehide',saveGame);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')saveGame();});
 const clearCd=()=>{if(cd){clearInterval(cd);cd=null;}};
 function startCd(){
   cdStarted=true;cdTotal=curLim(G.pots.length)*1000+pend;cdRemaining=cdTotal;pend=0;
@@ -231,6 +259,7 @@ function autoSolve(){
   const slv=document.getElementById('slv');slv.style.display='block';
   slv.textContent='정답이에요! +'+fmt(gain)+'점'+(gotHeart?' · ♥+1':'')+' — 나머지 팟도 풀어보거나, 정답 확인 버튼으로 바로 다음 문제로 넘어가세요.';
   document.getElementById('chk').textContent='다음 문제로';
+  saveGame();
 }
 function award(i){
   if(done||bonusOk[i])return;const inp=document.getElementById('a'+i);
@@ -254,13 +283,16 @@ async function renderHof(){const box=document.getElementById('hof');box.textCont
   if(!a.length){const n=document.createElement('div');n.className='note';n.textContent='아직 기록이 없어요. 첫 기록을 남겨보세요.';body.appendChild(n);return;}
   a.slice(0,10).forEach((e,i)=>{const r=document.createElement('div');r.className='hr';const l=document.createElement('span');l.textContent=(i+1)+'  '+e.n;const v=document.createElement('span');v.textContent=fmt(e.s)+'점';r.append(l,v);body.appendChild(r);});
   const f=document.createElement('div');f.className='note';f.style.marginTop='6px';f.textContent=shared?'전체 플레이어 기록이에요.':FB_URL?'서버에 연결하지 못해 이 기기 기록을 보여줘요 ('+why+')':'이 기기에 저장된 기록이에요.';body.appendChild(f);}
-function showSetup(){stop();clearCd();document.getElementById('pop').style.display='none';document.getElementById('game').style.display='none';document.getElementById('setup').style.display='block';renderHof();}
+function showSetup(){stop();clearCd();document.getElementById('pop').style.display='none';document.getElementById('game').style.display='none';document.getElementById('setup').style.display='block';renderResume();renderHof();}
 const nextOrEnd=()=>{if(over)showSetup();else newRound();};
 function newRound(){
-  clearCd();cdStarted=false;pend=0;cdSpeed=1;solved=false;
   qn++;const tg=qn<=5?rnd(2,3):qn<=10?rnd(2,4):qn<=20?rnd(2,5):5;let r=null;
   for(let t=0;t<8000&&!r;t++){const x=sim(tg>=4);if(x&&x.pots.length===tg)r=x;}
   for(let t=0;t<3000&&!r;t++)r=sim(false);
+  setupRound(r);
+}
+function setupRound(r){
+  clearCd();cdStarted=false;pend=0;cdSpeed=1;solved=false;
   G=r;done=false;roundT=Date.now();fast=false;updHud();document.getElementById('nxt').textContent='다음 문제';document.getElementById('pn').textContent='다음 문제';
   clearTimeout(fastTimer);const nxBtn=document.getElementById('nx');nxBtn.disabled=false;nxBtn.textContent='배속';
   fastTimer=setTimeout(()=>{if(!fast&&!done)nxBtn.disabled=true;},2000);
@@ -271,14 +303,16 @@ function newRound(){
   bonusOk=G.pots.map(()=>false);document.getElementById('tmp').textContent='';
   document.getElementById('slv').style.display='none';document.getElementById('slv').textContent='';
   document.getElementById('chk').textContent='정답 확인';
-  G.pots.forEach((p,i)=>{const inp=document.getElementById('a'+i);inp.oninput=()=>{clearTimeout(inp._t);inp._t=setTimeout(()=>award(i),500);};});
+  G.pots.forEach((p,i)=>{const inp=document.getElementById('a'+i);inp.oninput=()=>{clearTimeout(inp._t);inp._t=setTimeout(()=>award(i),300);};});
   document.getElementById('pop').style.display='none';
   document.getElementById('chk').style.display='block';document.getElementById('rvw').style.display='none';document.getElementById('nxt').style.display='none';
+  saveGame();
 }
 function check(to){
   if(done)return;done=true;const remMs=cd?Math.max(0,cdRemaining):(curLim(G.pots.length)*1000+pend);clearCd();stop();step=G.log.length;draw();
   const k=G.pots.length,v=[...Array(k).keys()].map(i=>parseInt((document.getElementById('a'+i).value||'').replace(/\D/g,''),10)||0);
-  const res=G.pots.map((p,i)=>p.amt===v[i]),all=res.every(Boolean);
+  const res0=G.pots.map((p,i)=>p.amt===v[i]),all=res0.filter(Boolean).length>=k-1;
+  const res=all?G.pots.map(()=>true):res0,auto=G.pots.map((p,i)=>all&&!res0[i]);
   let gain=0,gotHeart=false;if(all){gain=G.pots.length*100+Math.ceil(remMs/1000)*10;score+=gain;if(fast&&lives<5){lives++;gotHeart=true;}}else lives--;
   let extra='';if(lives<=0){over=true;extra=`<div style="margin-top:6px;color:var(--gb)">게임 오버 · 최종 ${fmt(score)}점<span id="rkt"></span></div>`;
     if(!gameSubmitted){gameSubmitted=true;submitScore(nick,score).then(res=>{const el=document.getElementById('rkt');if(!el||!res)return;
@@ -286,16 +320,17 @@ function check(to){
       else el.textContent=res.rank<=10?' · 명예의 전당 '+res.rank+'위':' · 10위권 밖';});}
     document.getElementById('nxt').textContent='랭킹 보기';document.getElementById('pn').textContent='랭킹 보기';}
   updHud();
-  const L=G.pots.map((p,i)=>`<div>${res[i]?'○':'✕'} ${NM[i]} 팟 <b>${fmt(p.amt)}</b> = ${fmt(p.step)} × ${p.el}명${p.dead?` + 데드머니 ${fmt(p.dead)}`:''}${res[i]?'':` (내 답 ${fmt(v[i])})`}</div>`);
+  const L=G.pots.map((p,i)=>`<div>${res[i]?'○':'✕'} ${NM[i]} 팟${auto[i]?' (자동)':''} <b>${fmt(p.amt)}</b> = ${fmt(p.step)} × ${p.el}명${p.dead?` + 데드머니 ${fmt(p.dead)}`:''}${res[i]?'':` (내 답 ${fmt(v[i])})`}</div>`);
   if(G.unc)L.push(`<div style="opacity:.65;margin-top:4px">${G.pos[G.ui]}의 콜 받지 못한 ${fmt(G.unc)}은 반환되어 팟에 포함되지 않아요.</div>`);
   const pt=document.getElementById('pt');pt.className=all?'ok':'no';pt.textContent=all?'정답이에요 +'+gain+'점'+(gotHeart?' · ♥+1':''):to===true?'시간 초과예요':'오답이에요';
   fullHtml=L.join('');
-  document.getElementById('pb').innerHTML=G.pots.map((p,i)=>`<div>${res[i]?'○':'✕'} ${NM[i]} 팟</div>`).join('')+extra;
+  document.getElementById('pb').innerHTML=G.pots.map((p,i)=>`<div>${res[i]?'○':'✕'} ${NM[i]} 팟${auto[i]?' (자동)':''}</div>`).join('')+extra;
   document.getElementById('pr').textContent='검토하기';
   document.getElementById('pop').style.display='flex';
   G.pots.forEach((p,i)=>{const inp=document.getElementById('a'+i);inp.readOnly=true;inp.style.borderColor=res[i]?'#5fae85':'#c4574e';
     inp.previousElementSibling.textContent=NM[i]+(res[i]?' ○':' ✕');});
   document.getElementById('chk').style.display='none';document.getElementById('rvw').style.display='block';document.getElementById('nxt').style.display='block';
+  if(over)clearSave();else saveGame();
 }
 document.getElementById('rs').onclick=()=>{stop();step=0;draw();};
 document.getElementById('nx').onclick=(e)=>{
@@ -306,13 +341,16 @@ document.getElementById('chk').onclick=()=>{if(solved)nextOrEnd();else check(fal
 document.getElementById('nxt').onclick=nextOrEnd;document.getElementById('pn').onclick=nextOrEnd;
 document.getElementById('pr').onclick=()=>{document.getElementById('pop').style.display='none';};
 document.getElementById('rvw').onclick=()=>{document.getElementById('pb').innerHTML=fullHtml;document.getElementById('pr').textContent='닫기';document.getElementById('pop').style.display='flex';};
-const go=(a,b)=>{const ni=document.getElementById('nick'),nm=ni.value.trim().slice(0,10);if(!nm){ni.style.borderColor='#c4574e';ni.focus();return;}ni.style.borderColor='';nick=nm;try{localStorage.setItem('potNick',nm);}catch(e){}BLV=[a,b];qn=0;practice=false;score=0;lives=3;over=false;gameSubmitted=false;document.getElementById('setup').style.display='none';document.getElementById('game').style.display='flex';newRound();};
+const go=(a,b)=>{const ni=document.getElementById('nick'),nm=ni.value.trim().slice(0,10);if(!nm){ni.style.borderColor='#c4574e';ni.focus();return;}ni.style.borderColor='';const old=loadSave();if(old)submitSaved(old);nick=nm;try{localStorage.setItem('potNick',nm);}catch(e){}BLV=[a,b];qn=0;practice=false;score=0;lives=3;over=false;gameSubmitted=false;document.getElementById('setup').style.display='none';document.getElementById('game').style.display='flex';newRound();};
 document.getElementById('pre').innerHTML=PRE.map(([a,b])=>`<button data-a="${a}" data-b="${b}">${lbl(a)} / ${lbl(b)}</button>`).join('');
+initAd();
 document.querySelectorAll('#pre button').forEach(x=>x.onclick=()=>go(+x.dataset.a,+x.dataset.b));
 document.getElementById('cgo').onclick=()=>{const a=parseInt(document.getElementById('csb').value.replace(/\D/g,''),10),b=parseInt(document.getElementById('cbb').value.replace(/\D/g,''),10);
   if(a>0&&b>=a)go(a,b);else{document.getElementById('cbb').style.borderColor='#c4574e';}};
 document.getElementById('chg').onclick=exitToSetup;
 try{document.getElementById('nick').value=localStorage.getItem('potNick')||'';}catch(e){}
+{const s=loadSave();if(s&&Date.now()-(s.ts||0)>SAVE_TTL)submitSaved(s);}
+renderResume();
 renderHof();
 (function(){
   let savedY=0;
