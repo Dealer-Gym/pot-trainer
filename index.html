@@ -188,8 +188,10 @@ async function dbPush(path,obj){
   if(fdb){await withTimeout(fdb.ref(path).push(obj));return;}
   const r=await fetch(fbBase()+'/'+path+'.json',{method:'POST',body:JSON.stringify(obj)});if(!r.ok)throw new Error('fb');}
 const bySc=(a,b)=>b.s-a.s||a.t-b.t;
-async function fbAll(){return Object.values(await dbGet('leaderboard')).sort(bySc);}
-async function fbTop(){return Object.values(await dbGet('leaderboard',{by:'s',last:10})).sort(bySc).slice(0,10);}
+// 같은 닉네임은 최고 기록 하나만 순위에 표시 (데이터는 그대로 두고 보여줄 때만 합침)
+const bestByName=list=>{const m=new Map();for(const e of list){const o=m.get(e.n);if(!o||bySc(e,o)<0)m.set(e.n,e);}return[...m.values()].sort(bySc);};
+async function fbAll(){return bestByName(Object.values(await dbGet('leaderboard')));}
+async function fbTop(){return bestByName(Object.values(await dbGet('leaderboard',{by:'s',last:100}))).slice(0,10);}
 async function fbPost(e){await dbPush('leaderboard',e);}
 async function fbDonors(){return Object.values(await dbGet('donors')).sort((a,b)=>b.t-a.t);}
 async function submitDonorReport(nick,real){await dbPush('donor_reports',{nick,real,t:Date.now()});}
@@ -221,7 +223,7 @@ async function renderPopupDonors(){
 async function submitScore(n,sc){
   const local=saveScore(n,sc);if(!FB_URL)return{rank:local,total:null};
   const e={n,s:sc,t:Date.now()};
-  try{await fbPost(e);const all=await fbAll();const i=all.findIndex(x=>x.t===e.t&&x.n===n&&x.s===sc);return{rank:i<0?null:i+1,total:all.length};}catch(err){return{rank:local,total:null};}
+  try{await fbPost(e);const all=await fbAll();const i=all.findIndex(x=>x.n===n);return{rank:i<0?null:i+1,total:all.length,best:i>=0&&all[i].s===sc};}catch(err){return{rank:local,total:null};}
 }
 let qn=0,score=0,lives=3,over=false,nick='',fast=false,practice=false,roundT=0,gameSubmitted=true,solved=false,fastTimer=null;let fullHtml='',cd=null,cdStarted=false,cdRemaining=0,cdTotal=0,cdSpeed=1,pend=0,bonusOk=[];
 // 진행 중인 게임을 기기에 저장 — 카톡/인스타 갔다 와서 페이지가 새로고침돼도 이어하기 가능
@@ -327,7 +329,7 @@ function check(to){
   let gain=0,gotHeart=false;if(all){gain=G.pots.length*100+Math.ceil(remMs/1000)*10;score+=gain;if(fast&&lives<5){lives++;gotHeart=true;}}else lives--;
   let extra='';if(lives<=0){over=true;extra=`<div style="margin-top:6px;color:var(--gb)">게임 오버 · 최종 ${fmt(score)}점<span id="rkt"></span></div>`;
     if(!gameSubmitted){gameSubmitted=true;submitScore(nick,score).then(res=>{const el=document.getElementById('rkt');if(!el||!res)return;
-      if(res.total)el.textContent=' · 전체 '+fmt(res.total)+'명 중 '+fmt(res.rank)+'위'+(res.rank<=10?' · 명예의 전당!':'');
+      if(res.total)el.textContent=' · 전체 '+fmt(res.total)+'명 중 '+fmt(res.rank)+'위'+(res.best?'':' (내 최고 기록 기준)')+(res.rank<=10?' · 명예의 전당!':'');
       else el.textContent=res.rank<=10?' · 명예의 전당 '+res.rank+'위':' · 10위권 밖';});}
     document.getElementById('nxt').textContent='랭킹 보기';document.getElementById('pn').textContent='랭킹 보기';}
   updHud();
