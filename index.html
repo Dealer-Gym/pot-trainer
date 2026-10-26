@@ -189,7 +189,7 @@ function initAd(){
 const stageOf=q=>q<=10?0:Math.floor((q-11)/5)+1;
 const curLim=k=>Math.max(5,LIM[k]-stageOf(qn));
 const curBonus=()=>Math.max(1500,5000-stageOf(qn)*500);
-const KAKAO_LINK='https://qr.kakaopay.com/FXUyfgYPV';    // 카카오페이 송금 링크
+const KAKAO_LINK='';    // 후원 버튼 잠시 숨김 — 다시 켜려면 'https://qr.kakaopay.com/FXUyfgYPV' 넣기
 const WEB3FORMS_KEY='7493ad80-c0e9-48ac-a353-c2522b66ddb3';    // Web3Forms 액세스 키 (후원자 제보 이메일 알림용)
 const fbBase=()=>FB_URL.replace(/\/$/,'');
 // App Check: 이 게임 페이지에서 보낸 요청만 데이터베이스가 받도록 증명 토큰을 붙임 (외부에서 직접 점수 넣기 차단)
